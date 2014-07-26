@@ -35,7 +35,6 @@
 (defparameter *lr-map* 0) ;map left=1 right=2 both=3
 (defparameter *is-thrusting* nil)
 
-(defparameter *world* nil)
 ;(defconstant *but-left*   :sdl-key-a)
 ;(defparameter *but-right*  :sdl-key-d)
 ;(defparameter *but-fire*   :sdl-key-space)
@@ -96,7 +95,8 @@
   ((pos :initarg :pos :initform '(0.5 0.5) :accessor pos)
    (radius :initarg :radius :accessor radius)
    (velocity :initarg :velocity :initform '(0 0) :accessor velocity)))
-(defmethod collide ((mob mob) (other mob) (world world)) t)
+
+
 
 (defmethod map-coords ((mob mob))
   "create a point from mob's fractional coordinates"
@@ -107,11 +107,6 @@
 (defmethod map-radius ((mob mob))
   (round (* (radius mob) *screen-width*)))
 
-(defmethod update ((mob mob) time-delta (world world))
-  (setf (pos mob)
-        (mapcar (lambda (x) (mod x 1))
-                (xy-off-sum (pos mob) 
-			    (xy-off-scale (velocity mob) time-delta)))))
 
 (defmethod intersects-p ((mob mob) (other mob))
   (< (my-distance (pos mob) (pos other))
@@ -145,11 +140,7 @@
     (setf (velocity rock)
           `(,(- (random (* 2 spd)) spd) ,(- (random (* 2 spd)) spd)))))
 
-(defmethod update ((rock rock) time-delta (world world))
-  (declare (ignore time-delta))
-  (when (not (frozen-p world))
-    (incf (direction rock) (rotation rock))
-    (call-next-method)))
+
 
 (defmethod render ((rock rock))
   (draw-polygon (loop for i from 0
@@ -168,16 +159,7 @@
   ((radius :initform 0.003)
    (ship :initarg :ship :accessor ship)))
 
-(defmethod update ((bullet bullet) time-delta (world world))
-  (setf (pos bullet)
-        (xy-off-sum (pos bullet)
-                    (xy-off-scale (velocity bullet)
-                                  time-delta)))
-  (destructuring-bind (x y) (pos bullet)
-    (when (or (not (< 0 x *screen-width*))
-              (not (< 0 y *screen-height*)))
-      (remove-from-world world bullet)))
-  (bullet-moved world bullet))
+
 
 (defmethod render ((bullet bullet))
   (let ((coords (map-coords bullet))
@@ -207,19 +189,12 @@
                  (+ radius (random 3))
                  :color *explosion-color* :aa t)))
 
-(defmethod update ((explosion explosion) time-delta (world world))
-  (when (> (incf (radius explosion) time-delta)
-           *explosion-max-radius*)
-    (remove-from-world world explosion)))
+
 ;;-------------------------------------------------------------------
 (defclass powerup (mob)
   ((radius :initform 0.03)
    (age :initform 0 :accessor age)))
 
-(defmethod update ((powerup powerup) time-delta (world world))
-  (when (> (ceiling (incf (age powerup) time-delta))
-           *powerup-max-age*) 
-    (remove-from-world world powerup)))
 
 ;;-------------------------------------------------------------------
 (defclass bullet-powerup (powerup) ())
@@ -274,31 +249,6 @@
                       :color *blue*))))
 
 
-(defmethod update :around ((ship ship) time-delta (world world))
-  ;; lr-map contains left/right button mapping, for rollover...
-  (cond 
-    ((= *lr-map* 0) (setf (rotation (ship world)) 0))
-    ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
-    ((= *lr-map* 2) (setf (rotation (ship world)) -1)) 
-    (t (setf (rotation (ship world)) 0)))
-
-  (setf (direction (ship world))
-	(+ (direction (ship world)) (* 200 time-delta (rotation (ship world)))))
-  
-  (if *is-thrusting*
-      (thrust (ship world))
-      (thrust-0 (ship world)))
-
-  (setf (velocity ship)
-	(xy-off-scale (xy-off-sum (velocity ship)
-				  (acceleration-of ship))
-		      *friction*))
-  (maphash (lambda (name timer)
-             (declare (ignore name))
-             (update-timer timer time-delta))
-           (timers ship))
-  (call-next-method)
-  (ship-moved world ship))
 
 (defmethod add-shield ((ship ship) &key (seconds 0))
   (if (powerup-active-p ship 'shield)
@@ -306,8 +256,6 @@
     (setf (gethash 'shield (timers ship))
           (make-instance 'timer :seconds seconds))))
 
-(defmethod collide :before ((ship ship) (powerup shield-powerup) (world world))
-  (add-shield ship :seconds 6))
 (defmethod thrust ((ship ship))
   "Set ship's acceleration using *thrust-factor* and ship's direction"
   (setf (acceleration-of ship) (xy-off-create (direction ship) *thrust-factor*)) )
@@ -317,12 +265,6 @@
   (setf (acceleration-of ship) '(0 0)))
 
 
-(defmethod shoot ((ship ship) (world world))
-  "Fire a missile using ship's direction"
-  (let ((bullet (make-instance 'bullet :pos (pos ship)
-                                       :ship ship)))
-    (setf (velocity bullet) (xy-off-create (direction ship) *bullet-velocity*))
-    (add-to-world world bullet)))
 
 
 
@@ -335,8 +277,6 @@
     (setf (gethash 'super-bullets (timers ship))
           (make-instance 'timer :seconds seconds))))
 
-(defmethod collide :before ((ship ship) (powerup bullet-powerup) (world world))
-  (add-super-bullets ship :seconds 6))
 
 
 ;;-------------------------------------------------------------------
@@ -382,7 +322,9 @@
   (setf (level world) 0)
   (setf (score world) 0)
   (setf (lives world) 1)
-  (setf *ticks* (sdl-get-ticks)))
+  (setf *ticks* (sdl-get-ticks))
+  (setf (ship world) nil) ;make sure a new ship is created latern
+)
 
 (defmethod start-next-level ((world world))
   (with-accessors ((level level)
@@ -398,7 +340,7 @@
     (setf (num-of-rocks world) 0) ;ss 
     (dotimes (i level)
       (add-to-world world (make-instance 'rock)))
-    (add-to-world world (make-instance 'ship))
+    (add-to-world world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
     (add-shield (ship world) :seconds 6)))
 
 (defmethod level-cleared-p ((world world))
@@ -540,11 +482,85 @@
 
 
 
+(defmethod update ((mob mob) time-delta (world world))
+  (setf (pos mob)
+        (mapcar (lambda (x) (mod x 1))
+                (xy-off-sum (pos mob) 
+			    (xy-off-scale (velocity mob) time-delta)))))
+
+
+(defmethod update ((rock rock) time-delta (world world))
+  (declare (ignore time-delta))
+  (when (not (frozen-p world))
+    (incf (direction rock) (rotation rock))
+    (call-next-method)))
+
+
+(defmethod update ((bullet bullet) time-delta (world world))
+  (setf (pos bullet)
+        (xy-off-sum (pos bullet)
+                    (xy-off-scale (velocity bullet)
+                                  time-delta)))
+  (destructuring-bind (x y) (pos bullet)
+    (when (or (not (< 0 x *screen-width*))
+              (not (< 0 y *screen-height*)))
+      (remove-from-world world bullet)))
+  (bullet-moved world bullet))
+
+
+(defmethod update ((explosion explosion) time-delta (world world))
+  (when (> (incf (radius explosion) time-delta)
+           *explosion-max-radius*)
+    (remove-from-world world explosion)))
+
+(defmethod update ((powerup powerup) time-delta (world world))
+  (when (> (ceiling (incf (age powerup) time-delta))
+           *powerup-max-age*) 
+    (remove-from-world world powerup)))
+
+(defmethod update :around ((ship ship) time-delta (world world))
+  ;; lr-map contains left/right button mapping, for rollover...
+  (cond 
+    ((= *lr-map* 0) (setf (rotation (ship world)) 0))
+    ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
+    ((= *lr-map* 2) (setf (rotation (ship world)) -1)) 
+    (t (setf (rotation (ship world)) 0)))
+
+  (setf (direction (ship world))
+	(+ (direction (ship world)) (* 200 time-delta (rotation (ship world)))))
+  
+  (if *is-thrusting*
+      (thrust (ship world))
+      (thrust-0 (ship world)))
+
+  (setf (velocity ship)
+	(xy-off-scale (xy-off-sum (velocity ship)
+				  (acceleration-of ship))
+		      *friction*))
+  (maphash (lambda (name timer)
+             (declare (ignore name))
+             (update-timer timer time-delta))
+           (timers ship))
+  (call-next-method)
+  (ship-moved world ship))
+
+
+(defmethod collide ((mob mob) (other mob) (world world)) t)
+
+(defmethod collide :before ((ship ship) (powerup shield-powerup) (world world))
+  (add-shield ship :seconds 6))
+
+(defmethod collide :before ((ship ship) (powerup bullet-powerup) (world world))
+  (add-super-bullets ship :seconds 6))
 
 
 
-
-
+(defmethod shoot ((ship ship) (world world))
+  "Fire a missile using ship's direction"
+  (let ((bullet (make-instance 'bullet :pos (pos ship)
+                                       :ship ship)))
+    (setf (velocity bullet) (xy-off-create (direction ship) *bullet-velocity*))
+    (add-to-world world bullet)))
 
 
 
