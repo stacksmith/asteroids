@@ -1,44 +1,66 @@
 ;;;; ASTeroids
-
-; vim: ts=2 sts=2 sw=2 et ai
+;; Note: vector seems to mean an x-y delta pair...
+; Controls: 
+;; Rotate a f   Thrust j  Fire <spacebar>
+;;
+;; TODO:
+;; separate gameloop from attract mode loop
+;;
 (ql:quickload "lispbuilder-sdl")
 (ql:quickload "lispbuilder-sdl-gfx")
 
 (defpackage :asteroids
   (:use :cl :sdl)
-  (:export main))
+  (:export main)
+  (:export *explosion-color*)
+)
 
 (in-package :asteroids)
 
-(defparameter *map-width* 640)
-(defparameter *map-height* 480)
+(defparameter *screen-width* 640)
+(defparameter *screen-height* 480)
 
 (defparameter *window* nil)
 (defparameter *window-width* 640)
-
-(defparameter *deceleration* 0.99)
-
+(defparameter *thrust-factor* 0.01)
+(defparameter *friction* 0.99)
+(defparameter *bullet-velocity* 0.8)
+(defparameter *rock-sides* 12)
+ 
 (defparameter *ticks* 0)
 
 (defparameter *powerup-max-age* 9)
-(defparameter *explosion-max-radius* 0.5)
+(defparameter *explosion-max-radius* 0.1)
+(defparameter *explosion-color* (sdl:color :r 120 :g 30 :b 30)) 
+(defparameter *lr-map* 0) ;map left=1 right=2 both=3
+(defparameter *is-thrusting* nil)
 
-(defun vector-sum (a b)
+(defparameter *world* nil)
+;(defconstant *but-left*   :sdl-key-a)
+;(defparameter *but-right*  :sdl-key-d)
+;(defparameter *but-fire*   :sdl-key-space)
+;(defparameter *but-thrust* :sdl-key-j)
+
+(defun xy-off-sum (a b)
   (mapcar #'+ a b))
 
-(defun vector-scale (v factor)
+(defun xy-off-scale (v factor)
   (mapcar #'* v (list factor factor)))
 
-(defun vector-subtract (a b)
+(defun xy-off-subtract (a b)
   (mapcar #'- a b))
 
+(defun xy-off-create (angle-deg magnitude)
+  "Create a 'xy-off'"
+  (list (* magnitude (sin (deg->rad angle-deg)))
+	(* magnitude (cos (deg->rad angle-deg)))))
 ;;; distance between point a and point b
 ;;; parameters must be lists of 2 numbers (x y)
 (defun my-distance (a b)
   (sqrt (apply #'+
                (mapcar (lambda (x)
                          (expt x 2))
-                       (vector-subtract a b)))))
+                       (xy-off-subtract a b)))))
 
 (defun square-from-midpoint (point radius)
   (rectangle-from-midpoint-* (x point)
@@ -56,80 +78,40 @@
   (point :x (+ (* radius (sin (deg->rad angle))) (x p))
          :y (+ (* radius (cos (deg->rad angle))) (y p))))
 
+(defun calc-angle (a b)
+  (destructuring-bind (x y) (xy-off-subtract b a)
+    (rad->deg (atan x y))))
+
 (defun get-ticks ()
   (let ((ticks (shiftf *ticks* (sdl-get-ticks))))
     (* (- *ticks* ticks) 0.001)))
 
-;;; represents an object on the game map
+(defun relative-coords (x y)
+"convert pixel coordinates to fractional coordinates"
+    (list (/ x *screen-width*) (/ y *screen-height*)))
+;;-------------------------------------------------------------------
+;; O B J E C T S
+;;; 
 (defclass mob ()
   ((pos :initarg :pos :initform '(0.5 0.5) :accessor pos)
    (radius :initarg :radius :accessor radius)
    (velocity :initarg :velocity :initform '(0 0) :accessor velocity)))
-
-(defclass asteroid (mob)
-  ((size :initarg :size :initform 'big :reader size)
-   (radii :initform nil :accessor radii)
-   (rotation :initform (* (- (random 1.0) 0.5) 5) :reader rotation)
-   (facing :initform 0 :accessor facing)
-   (pos :initform `(,(random 1.0) ,(random 1.0)))))
-
-(defclass bullet (mob)
-  ((radius :initform 0.005)
-   (ship :initarg :ship :accessor ship)))
-
-(defclass explosion (mob)
-  ((radius :initform 0)))
-
-(defclass powerup (mob)
-  ((radius :initform 0.03)
-   (age :initform 0 :accessor age)))
-
-(defclass bullet-powerup (powerup) ())
-
-(defclass freeze-powerup (powerup) ())
-
-(defclass shield-powerup (powerup) ())
-
-(defclass ship (mob)
-  ((timers :initform (make-hash-table) :accessor timers)
-   (acceleration :initform '(0 0) :accessor acceleration)
-   (facing :initform 0 :accessor facing)
-   (radius :initform 0.04)))
-
-(defclass timer ()
-  ((remaining :initarg :seconds :initform 0 :accessor remaining)))
-
-(defclass world ()
-  ((mobs :initform nil :accessor mobs)
-   (ship :initform nil :accessor ship)
-   (bullet :initform nil :accessor bullet)
-   (timers :initform (make-hash-table) :accessor timers)
-   (level :initform 0 :accessor level)
-   (num-asteroids :initform 0 :accessor num-asteroids)
-   (score :initform 0 :accessor score)
-   (max-level :initform 0 :accessor max-level)
-   (high-score :initform 0 :accessor high-score)
-   (lives :initform 0 :accessor lives)))
-
 (defmethod collide ((mob mob) (other mob) (world world)) t)
 
 (defmethod map-coords ((mob mob))
+  "create a point from mob's fractional coordinates"
   (destructuring-bind (x y) (pos mob)
-    (point :x (round (* x *map-width*))
-           :y (round (* y *map-height*)))))
-
-(defun relative-coords (x y)
-  (list (/ x *map-width*) (/ y *map-height*)))
+    (point :x (round (* x *screen-width*))
+           :y (round (* y *screen-height*)))))
 
 (defmethod map-radius ((mob mob))
-  (round (* (radius mob) *map-width*)))
+  (round (* (radius mob) *screen-width*)))
 
 (defmethod update ((mob mob) time-delta (world world))
   (setf (pos mob)
         (mapcar (lambda (x) (mod x 1))
-                (vector-sum (pos mob)
-                            (vector-scale (velocity mob)
-                                          time-delta)))))
+                (xy-off-sum (pos mob) 
+			    (xy-off-scale (velocity mob) time-delta)))))
 
 (defmethod intersects-p ((mob mob) (other mob))
   (< (my-distance (pos mob) (pos other))
@@ -138,107 +120,115 @@
 (defmethod render ((mob mob))
   (values))
 
-(defmethod initialize-instance :after ((asteroid asteroid) &key)
-  (let ((radius (cdr (assoc (size asteroid)
-                            '((big . 0.1) (medium . 0.075) (small . 0.05)))))
-        (spd (cdr (assoc (size asteroid)
-                         '((big . 0.1) (medium . 0.15) (small . 0.25))))))
-    (setf (radius asteroid) radius)
-    (setf (radii asteroid)
-          (loop for i from 0 below 20
-            collect (round (* (+ 0.9 (random 0.2))
-                              (map-radius asteroid)))))
-    (setf (velocity asteroid)
+
+;;-------------------------------------------------------------------
+;; R O C K
+;;
+(defclass rock (mob)
+  ((size :initarg :size :initform 'big :reader size)
+   (radii :initform nil :accessor radii)
+   (rotation :initform (* (- (random 1.0) 0.5) 3) :reader rotation)
+   (direction :initform 0 :accessor direction)
+   (pos :initform `(,(random 1.0) ,(random 1.0)))))
+
+(defmethod initialize-instance :after ((rock rock) &key)
+  (let ((radius (cdr (assoc (size rock)
+                            '((big . 0.1) (medium . 0.06) (small . 0.015)))))
+        (spd (cdr (assoc (size rock)
+                         '((big . 0.05) (medium . 0.15) (small . 0.25))))))
+    (setf (radius rock) radius)
+    (setf (radii rock)
+          (loop for i from 0 below *rock-sides*
+            collect (round (* (- 1.0 (random 0.4))
+                              (map-radius rock)))))
+    ;(print (radii rock))
+    (setf (velocity rock)
           `(,(- (random (* 2 spd)) spd) ,(- (random (* 2 spd)) spd)))))
 
-(defun random-powerup (&key pos)
-  (make-instance (case (random 3)
-                   (0 'bullet-powerup)
-                   (1 'freeze-powerup)
-                   (2 'shield-powerup))
-                 :pos pos))
-
-(defmethod break-down ((asteroid asteroid) (world world))
-  (with-slots ((pos pos) (size size)) asteroid
-    (if (eq size 'small)
-      ;; gradually reduce the probability of powerups appearing
-      (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
-          `(,(random-powerup :pos pos))
-          nil)
-      (let ((smaller (cond
-                     ((eq size 'big) 'medium)
-                     ((eq size 'medium) 'small))))
-        `(,(make-instance 'asteroid :pos pos :size smaller)
-          ,(make-instance 'asteroid :pos pos :size smaller))))))
-
-(defmethod done ((timer timer))
-  (<= (ceiling (remaining timer)) 0))
-
-(defmethod frozen-p ((world world))
-  (let ((timer (gethash 'freeze (timers world) nil)))
-    (and timer
-         (not (done timer)))))
-
-(defmethod update ((asteroid asteroid) time-delta (world world))
+(defmethod update ((rock rock) time-delta (world world))
   (declare (ignore time-delta))
   (when (not (frozen-p world))
-    (incf (facing asteroid) (rotation asteroid))
+    (incf (direction rock) (rotation rock))
     (call-next-method)))
 
-(defmethod render ((asteroid asteroid))
+(defmethod render ((rock rock))
   (draw-polygon (loop for i from 0
-                      for r in (radii asteroid)
-                  collect (radial-point-from (map-coords asteroid) r
-                                             (+ (facing asteroid)
-                                                (* i 18))))
+                      for r in (radii rock)
+                  collect (radial-point-from (map-coords rock) r
+                                             (+ (direction rock)
+                                                (* i (/ 360 *rock-sides*)))))
                 :color *white*))
 
-(defmethod remove-from-world ((world world) (mob mob))
-  (setf (mobs world) (remove mob (mobs world))))
 
-(defmethod remove-from-world :after ((world world) (asteroid asteroid))
-  (decf (num-asteroids world)))
 
-(defmethod remove-from-world :after ((world world) (ship ship))
-  (setf (ship world) nil))
+;;-------------------------------------------------------------------
+;; B U L L E T
+;; 
+(defclass bullet (mob)
+  ((radius :initform 0.003)
+   (ship :initarg :ship :accessor ship)))
+
+(defmethod update ((bullet bullet) time-delta (world world))
+  (setf (pos bullet)
+        (xy-off-sum (pos bullet)
+                    (xy-off-scale (velocity bullet)
+                                  time-delta)))
+  (destructuring-bind (x y) (pos bullet)
+    (when (or (not (< 0 x *screen-width*))
+              (not (< 0 y *screen-height*)))
+      (remove-from-world world bullet)))
+  (bullet-moved world bullet))
+
+(defmethod render ((bullet bullet))
+  (let ((coords (map-coords bullet))
+        (radius (map-radius bullet)))
+    (draw-circle coords radius
+                 :color *red*)
+    (when (super-p bullet)
+          (draw-circle coords (+ (random 3))
+                       :color *magenta*))))
+
+(defmethod super-p ((bullet bullet))
+  (powerup-active-p (ship bullet) 'super-bullets))
+
+
+
+;;-------------------------------------------------------------------
+;; E X P L O S I O N
+;;
+(defclass explosion (mob)
+  ((radius :initform 0)))
+
+(defmethod render ((explosion explosion))
+  (let ((coords (map-coords explosion))
+        (radius (map-radius explosion)))
+    (draw-circle coords radius :color *explosion-color* :aa t)
+    (draw-circle coords
+                 (+ radius (random 3))
+                 :color *explosion-color* :aa t)))
+
+(defmethod update ((explosion explosion) time-delta (world world))
+  (when (> (incf (radius explosion) time-delta)
+           *explosion-max-radius*)
+    (remove-from-world world explosion)))
+;;-------------------------------------------------------------------
+(defclass powerup (mob)
+  ((radius :initform 0.03)
+   (age :initform 0 :accessor age)))
 
 (defmethod update ((powerup powerup) time-delta (world world))
   (when (> (ceiling (incf (age powerup) time-delta))
-           *powerup-max-age*)
+           *powerup-max-age*) 
     (remove-from-world world powerup)))
 
-(defmethod add-score ((world world) (score number))
-  (setf (high-score world)
-        (max (incf (score world) score)
-             (high-score world))))
+;;-------------------------------------------------------------------
+(defclass bullet-powerup (powerup) ())
 
-(defmethod add-score ((world world) (powerup powerup))
-  (add-score world (* (level world) 10)))
+;;-------------------------------------------------------------------
+(defclass freeze-powerup (powerup) ())
 
-(defmethod add-score ((world world) (asteroid asteroid))
-  (add-score world (cdr (assoc (size asteroid)
-                               '((big . 1) (medium . 2) (small . 5))))))
-
-(defmethod collide :before ((ship ship) (powerup powerup) (world world))
-  (remove-from-world world powerup)
-  (add-score world powerup))
-
-(defmethod powerup-active-p ((ship ship) powerup)
-  (let ((timer (gethash powerup (timers ship) nil)))
-    (and timer
-         (not (done timer)))))
-
-(defmethod add-seconds ((timer timer) seconds)
-  (incf (remaining timer) seconds))
-
-(defmethod add-shield ((ship ship) &key (seconds 0))
-  (if (powerup-active-p ship 'shield)
-    (add-seconds (gethash 'shield (timers ship)) seconds)
-    (setf (gethash 'shield (timers ship))
-          (make-instance 'timer :seconds seconds))))
-
-(defmethod collide :before ((ship ship) (powerup shield-powerup) (world world))
-  (add-shield ship :seconds 6))
+;;-------------------------------------------------------------------
+(defclass shield-powerup (powerup) ())
 
 (defmethod render ((powerup shield-powerup))
   (let ((coords (map-coords powerup))
@@ -252,6 +242,93 @@
                     ,(radial-point-from coords (round (* radius 0.8)) 135))
                   :color *white*)))
 
+;;-------------------------------------------------------------------
+;; S H I P
+;;
+(defclass ship (mob)
+  ((timers :initform (make-hash-table) :accessor timers)
+   (acceleration :initform '(0 0) :accessor acceleration-of)
+   (direction :initform 0 :accessor direction)
+   (radius :initform 0.03)
+   (rotation :initform 0.0 :accessor rotation)))
+
+(defmethod render ((ship ship))
+  (let* ((coords (map-coords ship))
+         (radius (map-radius ship))
+         (direction (direction ship))
+         (nose (radial-point-from coords radius direction))
+         (left (radial-point-from coords radius (- direction 130)))
+         (right (radial-point-from coords radius (+ direction 130)))
+         (tail (radial-point-from coords (round (* radius 0.3)) (+ direction 180))))
+    (print tail ) (print right)
+    (draw-polygon (list nose left tail right)
+                  :color *green* :aa t)
+    (if *is-thrusting*
+	(draw-line tail (radial-point-from coords 
+					   (round (* radius (random 1.0))) 
+					   (+ direction 180 (- (random 20) 10)))
+		   :color *red* :aa nil))
+    (when (powerup-active-p ship 'shield)
+          (draw-circle coords
+                      (round (+ radius (random 3)))
+                      :color *blue*))))
+
+
+(defmethod update :around ((ship ship) time-delta (world world))
+  ;; lr-map contains left/right button mapping, for rollover...
+  (cond 
+    ((= *lr-map* 0) (setf (rotation (ship world)) 0))
+    ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
+    ((= *lr-map* 2) (setf (rotation (ship world)) -1)) 
+    (t (setf (rotation (ship world)) 0)))
+
+  (setf (direction (ship world))
+	(+ (direction (ship world)) (* 200 time-delta (rotation (ship world)))))
+  
+  (if *is-thrusting*
+      (thrust (ship world))
+      (thrust-0 (ship world)))
+
+  (setf (velocity ship)
+	(xy-off-scale (xy-off-sum (velocity ship)
+				  (acceleration-of ship))
+		      *friction*))
+  (maphash (lambda (name timer)
+             (declare (ignore name))
+             (update-timer timer time-delta))
+           (timers ship))
+  (call-next-method)
+  (ship-moved world ship))
+
+(defmethod add-shield ((ship ship) &key (seconds 0))
+  (if (powerup-active-p ship 'shield)
+    (add-seconds (gethash 'shield (timers ship)) seconds)
+    (setf (gethash 'shield (timers ship))
+          (make-instance 'timer :seconds seconds))))
+
+(defmethod collide :before ((ship ship) (powerup shield-powerup) (world world))
+  (add-shield ship :seconds 6))
+(defmethod thrust ((ship ship))
+  "Set ship's acceleration using *thrust-factor* and ship's direction"
+  (setf (acceleration-of ship) (xy-off-create (direction ship) *thrust-factor*)) )
+
+(defmethod thrust-0 ((ship ship))
+  "Set ship's acceleration to null"
+  (setf (acceleration-of ship) '(0 0)))
+
+
+(defmethod shoot ((ship ship) (world world))
+  "Fire a missile using ship's direction"
+  (let ((bullet (make-instance 'bullet :pos (pos ship)
+                                       :ship ship)))
+    (setf (velocity bullet) (xy-off-create (direction ship) *bullet-velocity*))
+    (add-to-world world bullet)))
+
+
+
+
+
+
 (defmethod add-super-bullets ((ship ship) &key (seconds 0))
   (if (powerup-active-p ship 'super-bullets)
     (add-seconds (gethash 'super-bullets (timers ship)) seconds)
@@ -260,6 +337,240 @@
 
 (defmethod collide :before ((ship ship) (powerup bullet-powerup) (world world))
   (add-super-bullets ship :seconds 6))
+
+
+;;-------------------------------------------------------------------
+(defclass timer ()
+  ((remaining :initarg :seconds :initform 0 :accessor remaining)))
+
+(defmethod done ((timer timer))
+  (<= (ceiling (remaining timer)) 0))
+
+(defmethod add-seconds ((timer timer) seconds)
+  (incf (remaining timer) seconds))
+
+;;-------------------------------------------------------------------
+;; W O R L D
+;;
+(defclass world ()
+  ((mobs :initform nil :accessor mobs)
+   (ship :initform nil :accessor ship)
+   (bullet :initform nil :accessor bullet)
+   (timers :initform (make-hash-table) :accessor timers)
+   (level :initform 0 :accessor level)
+   (num-of-rocks :initform 0 :accessor num-of-rocks)
+   (score :initform 0 :accessor score)
+   (best-level :initform 0 :accessor best-level)
+   (high-score :initform 0 :accessor high-score)
+   (lives :initform 0 :accessor lives)
+   (paused :initform nil :accessor paused)))
+
+(defmethod add-to-world ((world world) (mob mob))
+  (setf (mobs world) (cons mob (mobs world)))
+  (values mob))
+
+(defmethod bullet-moved ((world world) (bullet bullet))
+  (dolist (mob (mobs world))
+    (when (and (not (eq bullet mob))
+               (intersects-p bullet mob))
+      (collide bullet mob world))
+    (when (not (in-world-p world bullet))
+      (return bullet))))
+
+(defmethod reset ((world world))
+  (setf (paused world) nil)
+  (setf (level world) 0)
+  (setf (score world) 0)
+  (setf (lives world) 1)
+  (setf *ticks* (sdl-get-ticks)))
+
+(defmethod start-next-level ((world world))
+  (with-accessors ((level level)
+                   (best-level best-level)
+                   (mobs mobs)
+                   (timers timers)
+                   (ship ship))
+                   world
+    (incf level)
+    (setf best-level (max best-level level))
+    (setf mobs nil)
+    (setf timers (make-hash-table))
+    (setf (num-of-rocks world) 0) ;ss 
+    (dotimes (i level)
+      (add-to-world world (make-instance 'rock)))
+    (add-to-world world (make-instance 'ship))
+    (add-shield (ship world) :seconds 6)))
+
+(defmethod level-cleared-p ((world world))
+  ;(print (num-of-rocks world))
+  (< (num-of-rocks world) 1))
+
+(defmethod update-world ((world world) time-delta)
+  (maphash (lambda (name timer)
+             (declare (ignore name))
+             (update-timer timer time-delta))
+           (timers world))
+  (dolist (mob (mobs world))
+    (update mob time-delta world))
+  ;; start next level 3 seconds after clearing
+  (when (level-cleared-p world)
+    (after world
+           'cleared
+           :seconds 3
+           :do (lambda ()
+                 (incf (lives world))
+                 (start-next-level world))))
+  ;; restart level 3 seconds after death - game over if no more lives
+  (unless (ship world)
+    (after world
+           'death
+           :seconds 3
+           :do (lambda ()
+                 (if (< (lives world) 1)
+                   (setf (level world) 0) ; game over
+                   (let ((ship (make-instance 'ship)))
+                     (add-to-world world ship)
+                     (add-shield ship :seconds 6)))))))
+
+(defmethod after ((world world) timer-name &key (seconds 0) do)
+  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
+    (if exists
+      (when (done timer)
+        (remhash timer-name (timers world))
+        (when (functionp do)
+          (funcall do)))
+      (setf (gethash timer-name (timers world))
+            (make-instance 'timer :seconds seconds)))))
+
+
+
+(defmethod add-to-world :after ((world world) (rock rock))
+  (incf (num-of-rocks world)))
+
+(defmethod remove-from-world :after ((world world) (rock rock))
+  (decf (num-of-rocks world)))
+
+(defmethod add-to-world :after ((world world) (ship ship))
+  (setf (ship world) ship))
+
+(defmethod remove-from-world :after ((world world) (ship ship))
+  (setf (ship world) nil))
+
+(defmethod remove-from-world ((world world) (mob mob))
+  (setf (mobs world) (remove mob (mobs world))))
+
+(defmethod frozen-p ((world world))
+  (let ((timer (gethash 'freeze (timers world) nil)))
+    (and timer
+         (not (done timer)))))
+
+
+(defmethod render-world ((world world))
+  (clear-display *black*)
+  ;; hud
+  (sdl-gfx:draw-string-solid-* (format nil "Level ~d" (level world))
+                               10 10
+                               :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil "Lives ~d" (lives world))
+                               10 (- *screen-height* 28)
+                               :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil "Score ~d" (score world))
+                               (- *screen-width* 127) (- *screen-height* 28)
+                               :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil
+                                       "~a [Q]uit"
+                                       (if (= (level world) 0)
+                                           "[P]lay"
+                                           "[P]ause"))
+                               (- *screen-width* 127) 10
+                               :color *green*)
+  (if (= (level world) 0)
+    ;; title screen
+    (progn
+      (sdl-gfx:draw-string-solid-* "Asteroids"
+                                   (round (* 1/2 (- *screen-width* 81)))
+                                   (round (* 1/4 (- *screen-height* 18)))
+                                   :color *green*)
+      (sdl-gfx:draw-string-solid-* (format nil
+                                           "High score: ~d"
+                                           (high-score world))
+                                   (round (* 1/2 (- *screen-width* 171)))
+                                   (round (* 1/2 (- *screen-height* 18)))
+                                   :color *green*)
+      (sdl-gfx:draw-string-solid-* (format nil "Best level: ~d" (best-level world))
+                                   (round (* 1/2 (- *screen-width* 135)))
+                                   (round (* 3/4 (- *screen-height* 18)))
+                                   :color *green*))
+    (progn
+      ;; game world
+      (set-clip-rect (rectangle :x 0 :y 0 :w *screen-width* :h *screen-height*)
+                     :surface *default-display*)
+      (dolist (mob (mobs world))
+        (render mob))
+      (set-clip-rect nil :surface *default-display*)
+      ;; pause text
+      (when (paused world)
+        (sdl-gfx:draw-string-solid-* "PAUSED"
+                                     (round (* 1/2 (- *screen-width* 54)))
+                                     (round (* 1/2 (- *screen-height* 18)))
+                                     :color *green*)))))
+
+;;----------------------------
+
+
+(defun random-powerup (&key pos)
+  (make-instance (case (random 3)
+                   (0 'bullet-powerup)
+                   (1 'freeze-powerup)
+                   (2 'shield-powerup))
+                 :pos pos))
+
+(defmethod break-down ((rock rock) (world world))
+  (with-slots ((pos pos) (size size)) rock
+    (if (eq size 'small)
+      ;; gradually reduce the probability of powerups appearing
+      (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
+          `(,(random-powerup :pos pos))
+          nil)
+      (let ((smaller (cond
+                     ((eq size 'big) 'medium)
+                     ((eq size 'medium) 'small))))
+        `(,(make-instance 'rock :pos pos :size smaller)
+          ,(make-instance 'rock :pos pos :size smaller))))))
+
+
+
+
+
+
+
+
+
+
+
+
+(defmethod add-score ((world world) (score number))
+  (setf (high-score world)
+        (max (incf (score world) score)
+             (high-score world))))
+
+(defmethod add-score ((world world) (powerup powerup))
+  (add-score world (* (level world) 10)))
+
+(defmethod add-score ((world world) (rock rock))
+  (add-score world (cdr (assoc (size rock)
+                               '((big . 1) (medium . 2) (small . 5))))))
+
+(defmethod collide :before ((ship ship) (powerup powerup) (world world))
+  (remove-from-world world powerup)
+  (add-score world powerup))
+
+(defmethod powerup-active-p ((ship ship) powerup)
+  (let ((timer (gethash powerup (timers ship) nil)))
+    (and timer
+         (not (done timer)))))
+
+
 
 (defmethod render ((powerup bullet-powerup))
   (let ((coords (map-coords powerup))
@@ -291,11 +602,9 @@
                                                (* i 30)))
                   :color *white*)))
 
-(defmethod add-to-world ((world world) (mob mob))
-  (setf (mobs world) (cons mob (mobs world)))
-  (values mob))
 
-(defmethod collide :before ((ship ship) (asteroid asteroid) (world world))
+
+(defmethod collide :before ((ship ship) (rock rock) (world world))
   (unless (powerup-active-p ship 'shield)
     (remove-from-world world ship)
     (add-to-world world (make-instance 'explosion :pos (pos ship)))
@@ -317,261 +626,84 @@
   (unless (done timer)
     (decf (remaining timer) time-delta)))
 
-(defmethod update :around ((ship ship) time-delta (world world))
-  (setf (velocity ship)
-        (vector-scale (vector-sum (velocity ship)
-                                  (acceleration ship))
-                      *deceleration*))
-  (maphash (lambda (name timer)
-             (declare (ignore name))
-             (update-timer timer time-delta))
-           (timers ship))
-  (call-next-method)
-  (ship-moved world ship))
 
-(defmethod thrust-at ((ship ship) coords)
-  (setf (acceleration ship)
-        (vector-sum (acceleration ship)
-                    (vector-scale (vector-subtract coords (pos ship))
-                                  0.03))))
 
-(defmethod stop-thrust ((ship ship))
-  (setf (acceleration ship) '(0 0)))
 
-(defmethod shoot-at ((ship ship) coords (world world))
-  (let ((bullet (make-instance 'bullet :pos (pos ship)
-                                       :ship ship)))
-    (setf (velocity bullet)
-          (vector-scale (vector-subtract coords (pos bullet))
-                        3))
-    (add-to-world world bullet)))
 
-(defmethod render ((ship ship))
-  (let* ((coords (map-coords ship))
-         (radius (map-radius ship))
-         (facing (facing ship))
-         (nose (radial-point-from coords radius facing))
-         (left (radial-point-from coords radius (- facing 130)))
-         (right (radial-point-from coords radius (+ facing 130)))
-         (tail (radial-point-from coords (round (* radius 0.5)) (+ facing 180))))
-    (draw-polygon (list nose left tail right)
-                  :color *white*)
-    (when (powerup-active-p ship 'shield)
-          (draw-circle coords
-                      (round (+ radius (random 3)))
-                      :color *green*))))
-
-(defmethod super-p ((bullet bullet))
-  (powerup-active-p (ship bullet) 'super-bullets))
-
-(defmethod collide :before ((bullet bullet) (asteroid asteroid) (world world))
-  (remove-from-world world asteroid)
+(defmethod collide :before ((bullet bullet) (rock rock) (world world))
+  (remove-from-world world rock)
   (when (not (super-p bullet))
     (remove-from-world world bullet))
   (mapcar (lambda (mob)
             (add-to-world world mob))
-          (break-down asteroid world))
-  (add-to-world world (make-instance 'explosion :pos (pos asteroid)))
-  (add-score world asteroid))
+          (break-down rock world))
+  (add-to-world world (make-instance 'explosion :pos (pos rock)))
+  (add-score world rock))
 
-(defmethod render ((bullet bullet))
-  (let ((coords (map-coords bullet))
-        (radius (map-radius bullet)))
-    (draw-circle coords radius
-                 :color *red*)
-    (when (super-p bullet)
-          (draw-circle coords (+ (random 3))
-                       :color *magenta*))))
 
-(defmethod bullet-moved ((world world) (bullet bullet))
-  (dolist (mob (mobs world))
-    (when (and (not (eq bullet mob))
-               (intersects-p bullet mob))
-      (collide bullet mob world))
-    (when (not (in-world-p world bullet))
-      (return bullet))))
 
-(defmethod update ((bullet bullet) time-delta (world world))
-  (setf (pos bullet)
-        (vector-sum (pos bullet)
-                    (vector-scale (velocity bullet)
-                                  time-delta)))
-  (destructuring-bind (x y) (pos bullet)
-    (when (or (not (< 0 x *map-width*))
-              (not (< 0 y *map-height*)))
-      (remove-from-world world bullet)))
-  (bullet-moved world bullet))
 
-(defmethod render ((explosion explosion))
-  (let ((coords (map-coords explosion))
-        (radius (map-radius explosion)))
-    (draw-circle coords radius :color *red*)
-    (draw-circle coords
-                 (+ radius (random 3))
-                 :color *red*)))
 
-(defmethod update ((explosion explosion) time-delta (world world))
-  (when (> (incf (radius explosion) time-delta)
-           *explosion-max-radius*)
-    (remove-from-world world explosion)))
 
-(defmethod start-next-level ((world world))
-  (with-accessors ((level level)
-                   (max-level max-level)
-                   (mobs mobs)
-                   (timers timers)
-                   (ship ship))
-                   world
-    (incf level)
-    (setf max-level (max max-level level))
-    (setf mobs nil)
-    (setf timers (make-hash-table))
-    (dotimes (i level)
-      (add-to-world world (make-instance 'asteroid)))
-    (add-to-world world (or ship (make-instance 'ship)))
-    (add-shield (ship world) :seconds 6)))
 
-(defmethod level-cleared-p ((world world))
-  (< (num-asteroids world) 1))
 
-(defmethod after ((world world) timer-name &key (seconds 0) do)
-  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
-    (if exists
-      (when (done timer)
-        (remhash timer-name (timers world))
-        (when (functionp do)
-          (funcall do)))
-      (setf (gethash timer-name (timers world))
-            (make-instance 'timer :seconds seconds)))))
 
-(defmethod update-world ((world world) time-delta)
-  (maphash (lambda (name timer)
-             (declare (ignore name))
-             (update-timer timer time-delta))
-           (timers world))
-  (dolist (mob (mobs world))
-    (update mob time-delta world))
-  ;; start next level 3 seconds after clearing
-  (when (level-cleared-p world)
-    (after world
-           'cleared
-           :seconds 3
-           :do (lambda ()
-                 (incf (lives world))
-                 (start-next-level world))))
-  ;; restart level 3 seconds after death - game over if no more lives
-  (unless (ship world)
-    (after world
-           'death
-           :seconds 3
-           :do (lambda ()
-                 (if (< (lives world) 1)
-                   (setf (level world) 0) ; game over
-                   (let ((ship (make-instance 'ship)))
-                     (add-to-world world ship)
-                     (add-shield ship :seconds 6)))))))
 
-(defmethod add-to-world :after ((world world) (asteroid asteroid))
-  (incf (num-asteroids world)))
 
-(defmethod add-to-world :after ((world world) (ship ship))
-  (setf (ship world) ship))
 
-(defmethod render-world ((world world) paused)
-  (clear-display *black*)
-  ;; hud
-  (sdl-gfx:draw-string-solid-* (format nil "Level ~d" (level world))
-                               10 10
-                               :color *green*)
-  (sdl-gfx:draw-string-solid-* (format nil "Lives ~d" (lives world))
-                               10 (- *map-height* 28)
-                               :color *green*)
-  (sdl-gfx:draw-string-solid-* (format nil "Score ~d" (score world))
-                               (- *map-width* 127) (- *map-height* 28)
-                               :color *green*)
-  (sdl-gfx:draw-string-solid-* (format nil
-                                       "~a [Q]uit"
-                                       (if (= (level world) 0)
-                                           "[P]lay"
-                                           "[P]ause"))
-                               (- *map-width* 127) 10
-                               :color *green*)
-  (if (= (level world) 0)
-    ;; title screen
-    (progn
-      (sdl-gfx:draw-string-solid-* "ASTeroids"
-                                   (round (* 1/2 (- *map-width* 81)))
-                                   (round (* 1/4 (- *map-height* 18)))
-                                   :color *green*)
-      (sdl-gfx:draw-string-solid-* (format nil
-                                           "High score: ~d"
-                                           (high-score world))
-                                   (round (* 1/2 (- *map-width* 171)))
-                                   (round (* 1/2 (- *map-height* 18)))
-                                   :color *green*)
-      (sdl-gfx:draw-string-solid-* (format nil "Max level: ~d" (max-level world))
-                                   (round (* 1/2 (- *map-width* 135)))
-                                   (round (* 3/4 (- *map-height* 18)))
-                                   :color *green*))
-    (progn
-      ;; game world
-      (set-clip-rect (rectangle :x 0 :y 0 :w *map-width* :h *map-height*)
-                     :surface *default-display*)
-      (dolist (mob (mobs world))
-        (render mob))
-      (set-clip-rect nil :surface *default-display*)
-      ;; pause text
-      (when paused
-        (sdl-gfx:draw-string-solid-* "PAUSED"
-                                     (round (* 1/2 (- *map-width* 54)))
-                                     (round (* 1/2 (- *map-height* 18)))
-                                     :color *green*)))))
 
-(defun calc-angle (a b)
-  (destructuring-bind (x y) (vector-subtract b a)
-    (rad->deg (atan x y))))
+
+
+
+
+
+
 
 (defun main ()
   (with-init ()
     (setf *window*
           (window 640 480
-                  :title-caption "ASTeroids"
-                  :icon-caption "ASTeroids"))
+                  :title-caption "asteroids"
+                  :icon-caption "asteroids"))
     (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
     (setf (frame-rate) 60)
     (clear-display *black*)
-    (let ((world (make-instance 'world))
-          (paused nil))
+    (let ((world (make-instance 'world)) )
       (with-events ()
         (:quit-event () t)
+	#+nil
         (:mouse-motion-event (:x x :y y)
-          (when (ship world)
-            (setf (facing (ship world))
-                  (calc-angle (pos (ship world)) (relative-coords x y)))))
-        (:mouse-button-down-event (:x x :y y)
-          (when (and (> (level world) 0)
-                     (ship world)
-                     (not paused))
-            (shoot-at (ship world) (relative-coords x y) world)
-            (thrust-at (ship world) (relative-coords x y))))
+			     (when (ship world)
+			       (setf (direction (ship world))
+				     (calc-angle (pos (ship world)) (relative-coords x y)))))
+        #+nil
+	(:mouse-button-down-event (:x x :y y)
+				  )
         (:mouse-button-up-event ()
-          (when (and (> (level world) 0)
-                     (ship world))
-            (stop-thrust (ship world))))
-        (:key-up-event (:key key)
-          (case key
-            (:sdl-key-escape (push-quit-event))
-            (:sdl-key-q (setf (level world) 0))
-            (:sdl-key-p (if (= (level world) 0)
-                          (progn
-                            (setf (score world) 0)
-                            (setf (lives world) 1)
-                            (setf *ticks* (sdl-get-ticks))
-                            (start-next-level world))
-                          (setf paused (not paused))))))
-        (:idle ()
-          (when (and (> (level world) 0)
-                     (not paused))
-            (update-world world (get-ticks)))
-          (render-world world paused)
-          (update-display))))))
+				)
+        (:key-down-event (:key key)
+			 (case key  
+			   (:sdl-key-q (reset world))
+			   (:sdl-key-a (setf *lr-map* (1+ *lr-map*)))		
+			   (:sdl-key-f (setf *lr-map* (+ *lr-map* 2)))
+			   (:sdl-key-j (setf *is-thrusting* t))
+			   (:sdl-key-space (if (ship world)
+					       (shoot (ship world) world)))))
+
+	(:key-up-event (:key key)
+		       (case key
+			 (:sdl-key-escape (push-quit-event))
+			 (:sdl-key-p (if (= (level world) 0)
+					 (progn 
+					   (reset world)
+					   (start-next-level world))))
+			 (:sdl-key-a (setf *lr-map* (1- *lr-map*)))
+			 (:sdl-key-f (setf *lr-map* (- *lr-map* 2)))
+			 (:sdl-key-j (setf *is-thrusting* nil))))
+ 
+        (:idle () 
+	       (update-world world (get-ticks))
+	       (render-world world)
+	       (update-display)))
+      
+      )))
