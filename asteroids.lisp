@@ -24,7 +24,7 @@
 (defparameter *window-width* 640)
 (defparameter *thrust-factor* 0.01)
 (defparameter *friction* 0.99)
-(defparameter *bullet-velocity* 0.8)
+(defparameter *missile-velocity* 0.8)
 (defparameter *rock-sides* 12)
  
 (defparameter *ticks* 0)
@@ -155,28 +155,30 @@
 ;;-------------------------------------------------------------------
 ;; B U L L E T
 ;; 
-(defclass bullet (mob)
+(defclass missile (mob)
   ((radius :initform 0.001)
-   (ship :initarg :ship :accessor ship)))
+   (ship :initarg :ship :accessor ship)
+   (timeout :initform 1 :accessor timeout)))
 
 
-(defmethod render ((bullet bullet))
-  (let ((coords (map-coords bullet))
-        (radius (map-radius bullet)))
+(defmethod render ((missile missile))
+  (let ((coords (map-coords missile))
+        (radius (map-radius missile)))
     (draw-circle coords radius
                  :color *red*)
-    (when (super-p bullet)
+    (when (super-p missile)
           (draw-circle coords (+ (random 3))
                        :color *magenta*))))
 
-(defmethod super-p ((bullet bullet))
-  (powerup-active-p (ship bullet) 'super-bullets))
-
+(defmethod super-p ((missile missile))
+  (powerup-active-p (ship missile) 'super-missiles))
 
 
 ;;-------------------------------------------------------------------
-;; E X P L O S I O N
+;;E X P L O S I O N
 ;;
+
+
 (defclass explosion (mob)
   ((radius :initform 0)))
 
@@ -196,7 +198,7 @@
 
 
 ;;-------------------------------------------------------------------
-(defclass bullet-powerup (powerup) ())
+(defclass missile-powerup (powerup) ())
 
 ;;-------------------------------------------------------------------
 (defclass freeze-powerup (powerup) ())
@@ -273,10 +275,10 @@
 
 
 
-(defmethod add-super-bullets ((ship ship) &key (seconds 0))
-  (if (powerup-active-p ship 'super-bullets)
-    (add-seconds (gethash 'super-bullets (timers ship)) seconds)
-    (setf (gethash 'super-bullets (timers ship))
+(defmethod add-super-missiles ((ship ship) &key (seconds 0))
+  (if (powerup-active-p ship 'super-missiles)
+    (add-seconds (gethash 'super-missiles (timers ship)) seconds)
+    (setf (gethash 'super-missiles (timers ship))
           (make-instance 'timer :seconds seconds))))
 
 
@@ -346,6 +348,17 @@
 (defmethod remove-from :after ((world world) (ship ship))
   (setf (ship world) nil))
 
+;; update missile
+(defmethod update :before  ((missile missile) time-delta (world world))
+  (let ((remaining (- (timeout missile) time-delta)))
+    (if (<= remaining 0)
+	(remove-from world missile)
+	(setf (timeout missile) remaining)))
+  (dolist (mob (mobs world))
+    (when (and (not (eq missile  mob))
+	       (intersects-p missile mob))
+      (collide missile mob world))))
+
 
 
 
@@ -359,12 +372,12 @@
                    (mobs mobs)
                    (timers timers)
                    (ship ship))
-                   world
+      world
     (incf level)
     (setf best-level (max best-level level))
     (setf mobs nil)
     (setf timers (make-hash-table))
-    (setf (num-of-rocks world) 0) ;ss 
+    (setf (num-of-rocks world) 0)	;ss 
     (dotimes (i level)
       (add-to world (make-instance 'rock)))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
@@ -477,7 +490,7 @@
 
 (defun random-powerup (&key pos)
   (make-instance (case (random 3)
-                   (0 'bullet-powerup)
+                   (0 'missile-powerup)
                    (1 'freeze-powerup)
                    (2 'shield-powerup))
                  :pos pos))
@@ -511,18 +524,6 @@
     (call-next-method)))
 
 
-  #+nil
-(defmethod update :after ((bullet bullet) time-delta (world world))
-  (dolist (mob (mobs world))
-    (when (and (not (eq bullet mob))
-	       (intersects-p bullet mob))
-      (collide bullet mob world))
-    #+nil
-    (when (not (in-world-p world bullet))
-      ;(return bullet)
-      ))
-  )
-
 
 (defmethod update ((explosion explosion) time-delta (world world))
   (when (> (incf (radius explosion) time-delta)
@@ -536,7 +537,6 @@
 
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
-;(print ship)
   (cond 
     ((= *lr-map* 0) (setf (rotation (ship world)) 0))
     ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
@@ -568,17 +568,17 @@
 (defmethod collide :before ((ship ship) (powerup shield-powerup) (world world))
   (add-shield ship :seconds 6))
 
-(defmethod collide :before ((ship ship) (powerup bullet-powerup) (world world))
-  (add-super-bullets ship :seconds 6))
+(defmethod collide :before ((ship ship) (powerup missile-powerup) (world world))
+  (add-super-missiles ship :seconds 6))
 
 
 
 (defmethod shoot ((ship ship) (world world))
   "Fire a missile using ship's direction"
-  (let ((bullet (make-instance 'bullet :pos (pos ship)
+  (let ((missile (make-instance 'missile :pos (pos ship)
                                        :ship ship)))
-    (setf (velocity bullet) (xy-off-create (direction ship) *bullet-velocity*))
-    (add-to world bullet)))
+    (setf (velocity missile) (xy-off-create (direction ship) *missile-velocity*))
+    (add-to world missile)))
 
 
 
@@ -606,7 +606,7 @@
 
 
 
-(defmethod render ((powerup bullet-powerup))
+(defmethod render ((powerup missile-powerup))
   (let ((coords (map-coords powerup))
         (radius (map-radius powerup)))
     (draw-circle coords radius
@@ -662,10 +662,10 @@
 
 
 
-(defmethod collide :before ((bullet bullet) (rock rock) (world world))
+(defmethod collide :before ((missile missile) (rock rock) (world world))
   (remove-from world rock)
-  (when (not (super-p bullet))
-    (remove-from world bullet))
+  (when (not (super-p missile))
+    (remove-from world missile))
   (mapcar (lambda (mob)
             (add-to world mob))
           (break-down rock world))
