@@ -122,7 +122,7 @@
 (defclass rock (mob)
   ((size :initarg :size :initform 'big :reader size)
    (radii :initform nil :accessor radii)
-   (rotation :initform (* (- (random 1.0) 0.5) 3) :reader rotation)
+   (rotation :initform (* (- (random 1.0) 0.5) 3) :accessor rotation)
    (direction :initform 0 :accessor direction)
    (pos :initform `(,(random 1.0) ,(random 1.0)))))
 
@@ -143,7 +143,7 @@
 
 
 (defmethod render ((rock rock))
-  (draw-polygon (loop for i from 0
+   (draw-polygon (loop for i from 0
                       for r in (radii rock)
                   collect (radial-point-from (map-coords rock) r
                                              (+ (direction rock)
@@ -156,9 +156,8 @@
 ;; B U L L E T
 ;; 
 (defclass bullet (mob)
-  ((radius :initform 0.003)
+  ((radius :initform 0.001)
    (ship :initarg :ship :accessor ship)))
-
 
 
 (defmethod render ((bullet bullet))
@@ -225,7 +224,7 @@
    (acceleration :initform '(0 0) :accessor acceleration-of)
    (direction :initform 0 :accessor direction)
    (radius :initform 0.02)
-   (rotation :initform 0.0 :accessor rotation)))
+   (rotation :initform 0.0 :accessor rotation)) )
 
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
@@ -234,17 +233,18 @@
          (nose (radial-point-from coords radius direction))
          (left (radial-point-from coords radius (- direction 140)))
          (right (radial-point-from coords radius (+ direction 140)))
-	 (tail-right (radial-point-from coords (* -.5 radius) (+ direction 10) ))
-	 (tail-left (radial-point-from coords (* -.5 radius) (- direction 10) ))
-         (tail (radial-point-from coords (round (* radius 0.3)) (+ direction 180))))
+	 (tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
+	 (tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
+         (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180))))
     
     (draw-polygon (list nose left tail-left tail-right right)
                   :color *green* :aa t)
-    (if *is-thrusting*
-	(draw-line tail (radial-point-from coords 
+    (if *is-thrusting* ;draw thrusting jets
+	(draw-line tail (radial-point-from tail 
 					   (round (* radius (random 1.0))) 
 					   (+ direction 180 (- (random 20) 10)))
 		   :color *red* :aa nil))
+   
     (when (powerup-active-p ship 'shield)
       (draw-circle coords
 		   (round (+ radius (random 3)))
@@ -349,13 +349,7 @@
 
 
 
-(defmethod bullet-moved ((world world) (bullet bullet))
-  (dolist (mob (mobs world))
-    (when (and (not (eq bullet mob))
-               (intersects-p bullet mob))
-      (collide bullet mob world))
-    (when (not (in-world-p world bullet))
-      (return bullet))))
+
 
 
 
@@ -502,14 +496,14 @@
           ,(make-instance 'rock :pos pos :size smaller))))))
 
 
-
+;; all mobs continue moving and wrapping...
 (defmethod update ((mob mob) time-delta (world world))
   (setf (pos mob)
         (mapcar (lambda (x) (mod x 1))
                 (xy-off-sum (pos mob) 
 			    (xy-off-scale (velocity mob) time-delta)))))
 
-
+;; rocks also rotate.  Note: if frozen, mob update not called.
 (defmethod update ((rock rock) time-delta (world world))
   (declare (ignore time-delta))
   (when (not (frozen-p world))
@@ -517,16 +511,17 @@
     (call-next-method)))
 
 
-(defmethod update ((bullet bullet) time-delta (world world))
-  (setf (pos bullet)
-        (xy-off-sum (pos bullet)
-                    (xy-off-scale (velocity bullet)
-                                  time-delta)))
-  (destructuring-bind (x y) (pos bullet)
-    (when (or (not (< 0 x *screen-width*))
-              (not (< 0 y *screen-height*)))
-      (remove-from world bullet)))
-  (bullet-moved world bullet))
+  #+nil
+(defmethod update :after ((bullet bullet) time-delta (world world))
+  (dolist (mob (mobs world))
+    (when (and (not (eq bullet mob))
+	       (intersects-p bullet mob))
+      (collide bullet mob world))
+    #+nil
+    (when (not (in-world-p world bullet))
+      ;(return bullet)
+      ))
+  )
 
 
 (defmethod update ((explosion explosion) time-delta (world world))
@@ -559,6 +554,7 @@
 	(xy-off-scale (xy-off-sum (velocity ship)
 				  (acceleration-of ship))
 		      *friction*))
+
   (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer time-delta))
