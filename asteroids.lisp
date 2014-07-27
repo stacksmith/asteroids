@@ -224,7 +224,7 @@
   ((timers :initform (make-hash-table) :accessor timers)
    (acceleration :initform '(0 0) :accessor acceleration-of)
    (direction :initform 0 :accessor direction)
-   (radius :initform 0.03)
+   (radius :initform 0.02)
    (rotation :initform 0.0 :accessor rotation)))
 
 (defmethod render ((ship ship))
@@ -232,11 +232,13 @@
          (radius (map-radius ship))
          (direction (direction ship))
          (nose (radial-point-from coords radius direction))
-         (left (radial-point-from coords radius (- direction 130)))
-         (right (radial-point-from coords radius (+ direction 130)))
+         (left (radial-point-from coords radius (- direction 140)))
+         (right (radial-point-from coords radius (+ direction 140)))
+	 (tail-right (radial-point-from coords (* 0.5 radius) (- direction 10) ))
+	 (tail-left (radial-point-from coords (* 0.5 radius) (+ direction 10) ))
          (tail (radial-point-from coords (round (* radius 0.3)) (+ direction 180))))
-    (print tail ) (print right)
-    (draw-polygon (list nose left tail right)
+    
+    (draw-polygon (list nose left tail-left tail-right right)
                   :color *green* :aa t)
     (if *is-thrusting*
 	(draw-line tail (radial-point-from coords 
@@ -244,9 +246,9 @@
 					   (+ direction 180 (- (random 20) 10)))
 		   :color *red* :aa nil))
     (when (powerup-active-p ship 'shield)
-          (draw-circle coords
-                      (round (+ radius (random 3)))
-                      :color *blue*))))
+      (draw-circle coords
+		   (round (+ radius (random 3)))
+		   :color *blue*))))
 
 
 
@@ -289,12 +291,16 @@
 (defmethod add-seconds ((timer timer) seconds)
   (incf (remaining timer) seconds))
 
+(defmethod update-timer ((timer timer) time-delta)
+  (unless (done timer)
+    (decf (remaining timer) time-delta)))
+
 ;;-------------------------------------------------------------------
 ;; W O R L D
 ;;
 (defclass world ()
   ((mobs :initform nil :accessor mobs)
-   (ship :initform nil :accessor ship)
+   (ship :initform nil :accessor ship) ;note: also in mobs!
    (bullet :initform nil :accessor bullet)
    (timers :initform (make-hash-table) :accessor timers)
    (level :initform 0 :accessor level)
@@ -321,9 +327,13 @@
   (setf (paused world) nil)
   (setf (level world) 0)
   (setf (score world) 0)
-  (setf (lives world) 1)
+  (setf (lives world) 0)
   (setf *ticks* (sdl-get-ticks))
-  (setf (ship world) nil) ;make sure a new ship is created latern
+  (setf (mobs world) nil)
+  (setf (ship world) nil) ;make sure a new ship is created later
+  (setf (num-of-rocks world) 0)
+  (setf (bullet world) nil)
+
 )
 
 (defmethod start-next-level ((world world))
@@ -347,14 +357,17 @@
   ;(print (num-of-rocks world))
   (< (num-of-rocks world) 1))
 
+
 (defmethod update-world ((world world) time-delta)
   (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer time-delta))
            (timers world))
+(print (level world))
   (dolist (mob (mobs world))
     (update mob time-delta world))
   ;; start next level 3 seconds after clearing
+(print "B1")
   (when (level-cleared-p world)
     (after world
            'cleared
@@ -362,6 +375,7 @@
            :do (lambda ()
                  (incf (lives world))
                  (start-next-level world))))
+(print "C")
   ;; restart level 3 seconds after death - game over if no more lives
   (unless (ship world)
     (after world
@@ -520,6 +534,7 @@
 
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
+;(print ship)
   (cond 
     ((= *lr-map* 0) (setf (rotation (ship world)) 0))
     ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
@@ -638,9 +653,7 @@
     (when (not (in-world-p world ship))
       (return ship))))
 
-(defmethod update-timer ((timer timer) time-delta)
-  (unless (done timer)
-    (decf (remaining timer) time-delta)))
+
 
 
 
