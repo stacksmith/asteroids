@@ -301,7 +301,7 @@
 (defclass world ()
   ((mobs :initform nil :accessor mobs)
    (ship :initform nil :accessor ship) ;note: also in mobs!
-   (bullet :initform nil :accessor bullet)
+   ;(bullet :initform nil :accessor bullet)
    (timers :initform (make-hash-table) :accessor timers)
    (level :initform 0 :accessor level)
    (num-of-rocks :initform 0 :accessor num-of-rocks)
@@ -311,9 +311,45 @@
    (lives :initform 0 :accessor lives)
    (paused :initform nil :accessor paused)))
 
-(defmethod add-to-world ((world world) (mob mob))
+(defmethod reset ((world world))
+  (setf (mobs world) nil)
+  (setf (ship world) nil)	
+  ;(setf (bullet world) nil)
+  (setf (paused world) nil)
+  (setf (level world) 0)
+  (setf (score world) 0)
+  (setf (lives world) 0)
+  (setf *ticks* (sdl-get-ticks))
+  (setf (num-of-rocks world) 0)
+
+
+)
+;; Adding to world: cons to mob list and track ship and rock-count
+;;
+(defmethod add-to ((world world) (mob mob))
   (setf (mobs world) (cons mob (mobs world)))
   (values mob))
+
+(defmethod add-to :after ((world world) (rock rock))
+  (incf (num-of-rocks world)))
+
+(defmethod add-to :after ((world world) (ship ship))
+  (setf (ship world) ship))
+
+;; Removing from world
+(defmethod remove-from ((world world) (mob mob))
+  (setf (mobs world) (remove mob (mobs world))))
+
+
+(defmethod remove-from :after ((world world) (rock rock))
+  (decf (num-of-rocks world)))
+
+
+(defmethod remove-from :after ((world world) (ship ship))
+  (setf (ship world) nil))
+
+
+
 
 (defmethod bullet-moved ((world world) (bullet bullet))
   (dolist (mob (mobs world))
@@ -323,18 +359,7 @@
     (when (not (in-world-p world bullet))
       (return bullet))))
 
-(defmethod reset ((world world))
-  (setf (paused world) nil)
-  (setf (level world) 0)
-  (setf (score world) 0)
-  (setf (lives world) 0)
-  (setf *ticks* (sdl-get-ticks))
-  (setf (mobs world) nil)
-  (setf (ship world) nil) ;make sure a new ship is created later
-  (setf (num-of-rocks world) 0)
-  (setf (bullet world) nil)
 
-)
 
 (defmethod start-next-level ((world world))
   (with-accessors ((level level)
@@ -349,8 +374,8 @@
     (setf timers (make-hash-table))
     (setf (num-of-rocks world) 0) ;ss 
     (dotimes (i level)
-      (add-to-world world (make-instance 'rock)))
-    (add-to-world world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
+      (add-to world (make-instance 'rock)))
+    (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
     (add-shield (ship world) :seconds 6)))
 
 (defmethod level-cleared-p ((world world))
@@ -385,7 +410,7 @@
                  (if (< (lives world) 1)
                    (setf (level world) 0) ; game over
                    (let ((ship (make-instance 'ship)))
-                     (add-to-world world ship)
+                     (add-to world ship)
                      (add-shield ship :seconds 6)))))))
 
 (defmethod after ((world world) timer-name &key (seconds 0) do)
@@ -400,20 +425,7 @@
 
 
 
-(defmethod add-to-world :after ((world world) (rock rock))
-  (incf (num-of-rocks world)))
 
-(defmethod remove-from-world :after ((world world) (rock rock))
-  (decf (num-of-rocks world)))
-
-(defmethod add-to-world :after ((world world) (ship ship))
-  (setf (ship world) ship))
-
-(defmethod remove-from-world :after ((world world) (ship ship))
-  (setf (ship world) nil))
-
-(defmethod remove-from-world ((world world) (mob mob))
-  (setf (mobs world) (remove mob (mobs world))))
 
 (defmethod frozen-p ((world world))
   (let ((timer (gethash 'freeze (timers world) nil)))
@@ -518,19 +530,19 @@
   (destructuring-bind (x y) (pos bullet)
     (when (or (not (< 0 x *screen-width*))
               (not (< 0 y *screen-height*)))
-      (remove-from-world world bullet)))
+      (remove-from world bullet)))
   (bullet-moved world bullet))
 
 
 (defmethod update ((explosion explosion) time-delta (world world))
   (when (> (incf (radius explosion) time-delta)
            *explosion-max-radius*)
-    (remove-from-world world explosion)))
+    (remove-from world explosion)))
 
 (defmethod update ((powerup powerup) time-delta (world world))
   (when (> (ceiling (incf (age powerup) time-delta))
            *powerup-max-age*) 
-    (remove-from-world world powerup)))
+    (remove-from world powerup)))
 
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
@@ -575,7 +587,7 @@
   (let ((bullet (make-instance 'bullet :pos (pos ship)
                                        :ship ship)))
     (setf (velocity bullet) (xy-off-create (direction ship) *bullet-velocity*))
-    (add-to-world world bullet)))
+    (add-to world bullet)))
 
 
 
@@ -593,7 +605,7 @@
                                '((big . 1) (medium . 2) (small . 5))))))
 
 (defmethod collide :before ((ship ship) (powerup powerup) (world world))
-  (remove-from-world world powerup)
+  (remove-from world powerup)
   (add-score world powerup))
 
 (defmethod powerup-active-p ((ship ship) powerup)
@@ -637,8 +649,8 @@
 
 (defmethod collide :before ((ship ship) (rock rock) (world world))
   (unless (powerup-active-p ship 'shield)
-    (remove-from-world world ship)
-    (add-to-world world (make-instance 'explosion :pos (pos ship)))
+    (remove-from world ship)
+    (add-to world (make-instance 'explosion :pos (pos ship)))
     (decf (lives world))))
 
 (defmethod in-world-p ((world world) (mob mob))
@@ -660,13 +672,13 @@
 
 
 (defmethod collide :before ((bullet bullet) (rock rock) (world world))
-  (remove-from-world world rock)
+  (remove-from world rock)
   (when (not (super-p bullet))
-    (remove-from-world world bullet))
+    (remove-from world bullet))
   (mapcar (lambda (mob)
-            (add-to-world world mob))
+            (add-to world mob))
           (break-down rock world))
-  (add-to-world world (make-instance 'explosion :pos (pos rock)))
+  (add-to world (make-instance 'explosion :pos (pos rock)))
   (add-score world rock))
 
 
