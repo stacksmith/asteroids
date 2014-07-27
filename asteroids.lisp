@@ -234,8 +234,8 @@
          (nose (radial-point-from coords radius direction))
          (left (radial-point-from coords radius (- direction 140)))
          (right (radial-point-from coords radius (+ direction 140)))
-	 (tail-right (radial-point-from coords (* 0.5 radius) (- direction 10) ))
-	 (tail-left (radial-point-from coords (* 0.5 radius) (+ direction 10) ))
+	 (tail-right (radial-point-from coords (* -.5 radius) (+ direction 10) ))
+	 (tail-left (radial-point-from coords (* -.5 radius) (- direction 10) ))
          (tail (radial-point-from coords (round (* radius 0.3)) (+ direction 180))))
     
     (draw-polygon (list nose left tail-left tail-right right)
@@ -301,7 +301,6 @@
 (defclass world ()
   ((mobs :initform nil :accessor mobs)
    (ship :initform nil :accessor ship) ;note: also in mobs!
-   ;(bullet :initform nil :accessor bullet)
    (timers :initform (make-hash-table) :accessor timers)
    (level :initform 0 :accessor level)
    (num-of-rocks :initform 0 :accessor num-of-rocks)
@@ -314,7 +313,6 @@
 (defmethod reset ((world world))
   (setf (mobs world) nil)
   (setf (ship world) nil)	
-  ;(setf (bullet world) nil)
   (setf (paused world) nil)
   (setf (level world) 0)
   (setf (score world) 0)
@@ -388,11 +386,9 @@
              (declare (ignore name))
              (update-timer timer time-delta))
            (timers world))
-(print (level world))
   (dolist (mob (mobs world))
     (update mob time-delta world))
   ;; start next level 3 seconds after clearing
-(print "B1")
   (when (level-cleared-p world)
     (after world
            'cleared
@@ -400,7 +396,6 @@
            :do (lambda ()
                  (incf (lives world))
                  (start-next-level world))))
-(print "C")
   ;; restart level 3 seconds after death - game over if no more lives
   (unless (ship world)
     (after world
