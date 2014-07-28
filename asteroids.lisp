@@ -224,8 +224,11 @@
   ((timers :initform (make-hash-table) :accessor timers)
    (acceleration :initform '(0 0) :accessor acceleration-of)
    (direction :initform 0 :accessor direction)
-   (radius :initform 0.02)
-   (rotation :initform 0.0 :accessor rotation)) )
+   (rotation :initform 0.0 :accessor rotation) 
+   ))
+
+(defmethod initialize-instance :after ((ship ship) &key)
+  (setf  (radius ship) 0.02))
 
 
 ;; Draw a list of line segments represented as pairs of points
@@ -260,11 +263,6 @@
   (let* ((coords (map-coords ship))
 	 (radius (map-radius ship))
 	 (direction (direction ship))
-	 ;(nose (radial-point-from coords radius direction))
-	 ;(left (radial-point-from coords radius (- direction 140)))
-	 ;(right (radial-point-from coords radius (+ direction 140)))
-	 ;(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
-	 ;(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
 	 (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	 )
     
@@ -281,7 +279,11 @@
 		   (round (+ radius (random 3)))
 		   :color *blue*))))
 
-
+(defun ship-fire (ship)
+  (let ((missile (make-instance 'missile :pos (pos ship)
+				:ship ship)))
+    (setf (velocity missile) (xy-off-create (direction ship) *missile-velocity*))
+    missile ))
 
 (defmethod add-shield ((ship ship) &key (seconds 0))
   (if (powerup-active-p ship 'shield)
@@ -441,6 +443,7 @@
                  (if (< (lives world) 1)
                    (setf (level world) 0) ; game over
                    (let ((ship (make-instance 'ship)))
+		  
                      (add-to world ship)
                      (add-shield ship :seconds 6)))))))
 
@@ -553,7 +556,6 @@
     (call-next-method)))
 
 
-
 (defmethod update ((explosion explosion) time-delta (world world))
   (when (> (incf (radius explosion) time-delta)
            *explosion-max-radius*)
@@ -604,10 +606,8 @@
 
 (defmethod shoot ((ship ship) (world world))
   "Fire a missile using ship's direction"
-  (let ((missile (make-instance 'missile :pos (pos ship)
-                                       :ship ship)))
-    (setf (velocity missile) (xy-off-create (direction ship) *missile-velocity*))
-    (add-to world missile)))
+  (add-to world (ship-fire ship))
+)
 
 
 
