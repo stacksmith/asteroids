@@ -147,7 +147,7 @@
                   collect (radial-point-from (map-coords rock) r
                                              (+ (direction rock)
                                                 (* i (/ 360 *rock-sides*)))))
-                :color *white*))
+                :color *white* ))
 
 
 
@@ -155,7 +155,7 @@
 ;; M I S S I L E
 ;; 
 (defclass missile (mob)
-  ((ship :initarg :ship :accessor ship)
+  ((super :initform nil :initarg :super :accessor super-p)
    (timeout :initform 1 :accessor timeout)))
 
 (defmethod initialize-instance :after ((missile missile) &key)
@@ -248,8 +248,6 @@
    (rotation :initform 0.0 :accessor rotation) 
    ))
 
-(defmethod initialize-instance :after ((ship ship) &key)
-  (setf  (radius ship) 0.015))
 
 ;; Draw a list of line segments represented as pairs of points
 (defun draw-list (list &key (color *green*))
@@ -285,6 +283,9 @@
 ;;
 (defclass ship (proto-ship) ())
 
+(defmethod initialize-instance :after ((ship ship) &key)
+  (setf  (radius ship) 0.015))
+
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
 	 (radius (map-radius ship))
@@ -306,10 +307,13 @@
 		   :color *blue*))))
 
 (defun ship-fire (ship)
-  (let ((missile (make-instance 'missile :pos (pos ship)
-				:ship ship)))
+  (let ((missile (make-instance 'missile 
+				:pos (pos ship)
+				:super (powerup-active-p ship 'super-missiles) )))
     (setf (velocity missile) (xy-off-create (direction ship) *missile-velocity*))
-    missile ))
+    missile )
+  
+)
 
 (defmethod add-shield ((ship ship) &key (seconds 0))
   (if (powerup-active-p ship 'shield)
@@ -579,8 +583,6 @@
                    (2 'shield-powerup))
                  :pos pos))
 
-(defmethod super-p ((missile missile) )
-  (powerup-active-p (ship missile) 'super-missiles))
 
 
 (defmethod break-down ((rock rock) (world world))
