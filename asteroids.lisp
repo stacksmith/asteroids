@@ -583,10 +583,40 @@
     (and timer
          (not (done timer)))))
 
+;; Attract screen
+(defmethod render-attract ((world world))
+  (sdl-gfx:draw-string-solid-* "Asteroids"
+			       (round (* 1/2 (- *screen-width* 171)))
+			       (round (* 1/4 (- *screen-height* 18)))
+			       :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil
+				       "High score: ~d"
+				       (high-score world))
+			       (round (* 1/2 (- *screen-width* 171)))
+			       (round (* 1/2 (- *screen-height* 18)))
+			       :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil "Best level: ~d" (best-level world))
+			       (round (* 1/2 (- *screen-width* 171)))
+			       (round (* 3/4 (- *screen-height* 18)))
+			       :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil "Controls: [a] left   [f] right   [j] thrust   [space] fire" )
+			       50
+			       (round (* 7/8 (- *screen-height* 18)))
+			       :color *green*)
+  (sdl-gfx:draw-string-solid-* (format nil "Press [p] to play" )
+			       50
+			       (round (* 15/16 (- *screen-height* 18)))
 
+			       :color *green*)
+)
 (defmethod render-world ((world world))
   (clear-display *black*)
-  ;; hud
+  (if (= (level world) 0)
+      (render-attract world)
+      (render-world-game world))
+)
+(defmethod render-world-game ((world world))
+    ;; hud
   (sdl-gfx:draw-string-solid-* (format nil "Level ~d" (level world))
                                10 10
                                :color *green*)
@@ -599,36 +629,20 @@
   (sdl-gfx:draw-string-solid-* (format nil  "[P]ause [Q]uit")
                                (- *screen-width* 127) 10
                                :color *green*)
-  (if (= (level world) 0)
-    ;; title screen
-    (progn
-      (sdl-gfx:draw-string-solid-* "Asteroids"
-                                   (round (* 1/2 (- *screen-width* 81)))
-                                   (round (* 1/4 (- *screen-height* 18)))
-                                   :color *green*)
-      (sdl-gfx:draw-string-solid-* (format nil
-                                           "High score: ~d"
-                                           (high-score world))
-                                   (round (* 1/2 (- *screen-width* 171)))
-                                   (round (* 1/2 (- *screen-height* 18)))
-                                   :color *green*)
-      (sdl-gfx:draw-string-solid-* (format nil "Best level: ~d" (best-level world))
-                                   (round (* 1/2 (- *screen-width* 135)))
-                                   (round (* 3/4 (- *screen-height* 18)))
-                                   :color *green*))
-    (progn
-      ;; game world
-      (set-clip-rect (rectangle :x 0 :y 0 :w *screen-width* :h *screen-height*)
-                     :surface *default-display*)
-      (dolist (mob (mobs world))
-        (render mob))
-      (set-clip-rect nil :surface *default-display*)
-      ;; pause text
-      (when (paused world)
-        (sdl-gfx:draw-string-solid-* "PAUSED"
-                                     (round (* 1/2 (- *screen-width* 54)))
-                                     (round (* 1/2 (- *screen-height* 18)))
-                                     :color *green*)))))
+   
+  
+  (set-clip-rect (rectangle :x 0 :y 0 :w *screen-width* :h *screen-height*)
+		 :surface *default-display*)
+  (dolist (mob (mobs world))
+    (render mob))
+  (set-clip-rect nil :surface *default-display*)
+    ;; pause text
+
+  #+nil (when (paused world)
+    (sdl-gfx:draw-string-solid-* "PAUSED"
+				 (round (* 1/2 (- *screen-width* 54)))
+				 (round (* 1/2 (- *screen-height* 18)))
+				 :color *green*)))
 
 ;;----------------------------
 
@@ -782,13 +796,11 @@
     (let ((world (make-instance 'world)) )
       (with-events ()
         (:quit-event () t)
-	
         (:key-down-event (:key key) (key-processor world key :down t))
-
 	(:key-up-event (:key key) (key-processor world key :down nil))
- 
         (:idle () 
-	       (update-world world (get-ticks))
+	       (if  (> (level world) 0)
+		    (update-world world (get-ticks)))
 	       (render-world world)
 	       (update-display))))
       
