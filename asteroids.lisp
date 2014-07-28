@@ -152,7 +152,7 @@
 
 
 ;;-------------------------------------------------------------------
-;; B U L L E T
+;; M I S S I L E
 ;; 
 (defclass missile (mob)
   ((radius :initform 0.001)
@@ -218,25 +218,22 @@
                   :color *white*)))
 
 ;;-------------------------------------------------------------------
-;; S H I P
-;;
-(defclass ship (mob)
+;; P R O T O - S H I P
+(defclass proto-ship (mob)
   ((timers :initform (make-hash-table) :accessor timers)
    (acceleration :initform '(0 0) :accessor acceleration-of)
-   (direction :initform 0 :accessor direction)
+   (direction :initform 0 :initarg :direction :accessor direction)
    (rotation :initform 0.0 :accessor rotation) 
    ))
-
 (defmethod initialize-instance :after ((ship ship) &key)
   (setf  (radius ship) 0.02))
-
 
 ;; Draw a list of line segments represented as pairs of points
 (defun draw-list (list &key (color *green*))
   (loop for i on list by #'cddr do
        ;(print (car i) )
-      (draw-line (car i) (cadr i) :color *green* :aa t)
-       )) 
+      (draw-line (car i) (cadr i) :color color :aa t)
+       ))
 
 (defmethod polygon1 ((ship ship) coords radius direction)
   "return a list of vertices (points)"
@@ -249,8 +246,8 @@
 	)
     (list nose left tail-left tail-right right)))
 
-(defmethod polygon2 ((ship ship) coords radius direction)
-(let ((nose (radial-point-from coords radius direction))
+(defun polygon2 ( coords radius direction)
+  (let ((nose (radial-point-from coords radius direction))
 	(left (radial-point-from coords radius (- direction 140)))
 	(right (radial-point-from coords radius (+ direction 140)))
 	(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
@@ -258,6 +255,11 @@
 	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	)
     (list nose left  left tail-left  tail-left tail-right  tail-right right  right nose )))
+
+;;-------------------------------------------------------------------
+;; S H I P
+;;
+(defclass ship (proto-ship) ())
 
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
@@ -267,7 +269,7 @@
 	 )
     
     ;(draw-polygon (polygon1 ship coords radius direction) :color *green* :aa t)
-    (draw-list (polygon2 ship coords radius direction))
+    (draw-list (polygon2 coords radius direction))
     (if *is-thrusting* ;draw thrusting jets
 	(draw-line tail (radial-point-from tail 
 					   (round (* radius (random 1.0))) 
@@ -311,6 +313,23 @@
     (add-seconds (gethash 'super-missiles (timers ship)) seconds)
     (setf (gethash 'super-missiles (timers ship))
           (make-instance 'timer :seconds seconds))))
+
+
+;;-------------------------------------------------------------------
+;; X - S H I P
+(defclass x-ship (proto-ship) 
+  ((timeout :initform 2 :accessor timeout)))
+
+(defmethod render ((x-ship x-ship))
+  (let* ((coords (map-coords x-ship))
+	 (radius (map-radius x-ship))
+	 (direction (direction x-ship))
+	 )
+    
+    (draw-list (polygon2 coords radius direction) :color *red*)
+    )
+
+)
 
 
 
@@ -390,7 +409,13 @@
 	       (intersects-p missile mob))
       (collide missile mob world))))
 
-
+;; update x-ship
+(defmethod update :after  ((x-ship x-ship) time-delta (world world))
+  (let ((remaining (- (timeout x-ship) time-delta)))
+    (if (<= remaining 0)
+	(remove-from world x-ship)
+	(setf (timeout x-ship) remaining)))
+)
 
 
 
@@ -665,9 +690,14 @@
                   :color *white*)))
 
 
-
+;; ship-rock collision
 (defmethod collide :before ((ship ship) (rock rock) (world world))
   (unless (powerup-active-p ship 'shield)
+    (add-to world (make-instance 'x-ship 
+				 :pos (pos ship)
+				 :radius (radius ship)
+				 :velocity (velocity ship)
+				 :direction (direction ship)))
     (remove-from world ship)
     (add-to world (make-instance 'explosion :pos (pos ship)))
     (decf (lives world))
