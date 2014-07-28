@@ -8,6 +8,8 @@
 ;;
 (ql:quickload "lispbuilder-sdl")
 (ql:quickload "lispbuilder-sdl-gfx")
+(ql:quickload "lispbuilder-sdl-mixer")
+
 
 (defpackage :asteroids
   (:use :cl :sdl)
@@ -19,7 +21,7 @@
 
 (defparameter *screen-width* 800)
 (defparameter *screen-height* 600)
-
+ 
 (defparameter *window* nil)
 (defparameter *thrust-factor* 0.01)
 (defparameter *friction* 0.99)
@@ -27,7 +29,6 @@
 (defparameter *rock-sides* 12)
  
 (defparameter *ticks* 0)
-
 (defparameter *powerup-max-age* 9)
 (defparameter *explosion-max-radius* 0.1)
 (defparameter *explosion-color* (sdl:color :r 180 :g 30 :b 30)) 
@@ -38,6 +39,50 @@
 ;(defparameter *but-right*  :sdl-key-d)
 ;(defparameter *but-fire*   :sdl-key-space)
 ;(defparameter *but-thrust* :sdl-key-j)
+
+(defparameter *sound* nil)
+
+
+(defclass sound ()
+  ((opened :initform nil :accessor opened)
+   
+   (sample-explode1 :initform nil :accessor sample-explode1)
+   (sample-explode2 :initform nil :accessor sample-explode2)
+   (sample-explode3 :initform nil :accessor sample-explode3)
+   (sample-fire :initform nil :accessor sample-fire)
+   (sample-thrust :initform nil :accessor sample-thrust)
+)
+
+ )
+
+(defmethod initialize ((sound sound))
+  (sdl-mixer:init-mixer :mp3)
+  (setf (opened sound) (sdl-mixer:open-audio :chunksize 1024 :enable-callbacks nil))
+  (format t "mixer opened...")
+  (setf (sample-explode1 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode1.wav"))
+  (setf (sample-explode2 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode2.wav"))
+  (setf (sample-explode3 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode3.wav"))
+  (setf (sample-fire sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/fire.wav"))
+  (setf (sample-thrust sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thrust.wav"))
+
+  (sdl-mixer:allocate-channels 16)
+  (sdl-mixer:play-sample (sample-explode1 sound))
+)
+(defmethod play-explode1 ((sound sound))
+  (sdl-mixer:play-sample (sample-explode1 sound))
+)
+(defmethod play-explode2 ((sound sound))
+  (sdl-mixer:play-sample (sample-explode2 sound))
+)
+(defmethod play-explode3 ((sound sound))
+  (sdl-mixer:play-sample (sample-explode3 sound))
+)
+(defmethod play-fire ((sound sound))
+  (sdl-mixer:play-sample (sample-fire sound))
+)
+(defmethod play-thrust ((sound sound))
+  (sdl-mixer:play-sample (sample-thrust sound))
+)
 
 (defun xy-off-sum (a b)
   (mapcar #'+ a b))
@@ -283,7 +328,8 @@
 	  (draw-line tail
 		     (radial-point-from tail (round (* radius (random 1.0))) 
 					(+ direction 180 (- (random 20) 10)))
-		     :color *red* :aa nil)))
+		     :color *red* :aa nil))
+       	)
     
     (when (powerup-active-p ship 'shield)
       (draw-circle coords
@@ -533,6 +579,15 @@
 
 
 
+(defmethod after ((world world) timer-name &key (seconds 0) do)
+  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
+    (if exists
+      (when (done timer)
+        (remhash timer-name (timers world))
+        (when (functionp do)
+          (funcall do)))
+      (setf (gethash timer-name (timers world))
+            (make-instance 'timer :seconds seconds)))))
 
 
 (defmethod update-world ((world world) time-delta)
@@ -564,15 +619,7 @@
                      (add-shield ship :seconds 6)))))))
 
 
-(defmethod after ((world world) timer-name &key (seconds 0) do)
-  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
-    (if exists
-      (when (done timer)
-        (remhash timer-name (timers world))
-        (when (functionp do)
-          (funcall do)))
-      (setf (gethash timer-name (timers world))
-            (make-instance 'timer :seconds seconds)))))
+
 
 
 
@@ -683,11 +730,46 @@
 (defmethod collide :before ((ship ship) (powerup missile-powerup) (world world))
   (add-super-missiles ship :seconds 6))
 
+(defmethod collide :before ((ship ship) (powerup powerup) (world world))
+  (remove-from world powerup)
+  (add-score world powerup))
+
+(defmethod collide :before ((ship ship) (powerup freeze-powerup) (world world))
+  (add-freeze world :seconds 6))
+
+;; ship-rock collision
+(defmethod collide :before ((ship ship) (rock rock) (world world))
+  (unless (powerup-active-p ship 'shield)
+    (add-to world (make-instance 'x-ship 
+				 :pos (pos ship)
+				 :radius (radius ship)
+				 :velocity (velocity ship)
+				 :direction (direction ship)))
+    (remove-from world ship)
+    (add-to world (make-instance 'explosion :pos (pos ship)))
+    (decf (lives world))
+  
+    ))
+
+(defmethod collide :before ((missile missile) (rock rock) (world world))
+  (remove-from world rock)
+  (when (not (super-p missile ))
+    (remove-from world missile))
+  (mapcar (lambda (mob)
+            (add-to world mob))
+          (break-down rock world))
+  (add-to world (make-instance 'explosion :pos (pos rock)))
+  (add-score world rock)
+  (case (size rock)
+    (big (play-explode1 *sound*))
+    (medium (play-explode2 *sound*))
+    (small (play-explode3 *sound*))))
 
 
 (defmethod shoot ((ship ship) (world world))
   "Fire a missile using ship's direction"
   (add-to world (ship-fire ship))
+  (play-fire *sound*)
 )
 
 
@@ -705,11 +787,6 @@
   (add-score world (cdr (assoc (size rock)
                                '((big . 1) (medium . 2) (small . 5))))))
 
-(defmethod collide :before ((ship ship) (powerup powerup) (world world))
-  (remove-from world powerup)
-  (add-score world powerup))
-
-
 
 
 
@@ -721,39 +798,16 @@
     (setf (gethash 'freeze (timers world))
           (make-instance 'timer :seconds seconds))))
 
-(defmethod collide :before ((ship ship) (powerup freeze-powerup) (world world))
-  (add-freeze world :seconds 6))
 
 
 
-;; ship-rock collision
-(defmethod collide :before ((ship ship) (rock rock) (world world))
-  (unless (powerup-active-p ship 'shield)
-    (add-to world (make-instance 'x-ship 
-				 :pos (pos ship)
-				 :radius (radius ship)
-				 :velocity (velocity ship)
-				 :direction (direction ship)))
-    (remove-from world ship)
-    (add-to world (make-instance 'explosion :pos (pos ship)))
-    (decf (lives world))
-  
-    ))
+
 
 (defmethod in-world-p ((world world) (mob mob))
   (find mob (mobs world)))
 
 
 
-(defmethod collide :before ((missile missile) (rock rock) (world world))
-  (remove-from world rock)
-  (when (not (super-p missile ))
-    (remove-from world missile))
-  (mapcar (lambda (mob)
-            (add-to world mob))
-          (break-down rock world))
-  (add-to world (make-instance 'explosion :pos (pos rock)))
-  (add-score world rock))
 
 
 (defun key-processor-attract (world key &key down)
@@ -768,7 +822,7 @@
 	(:sdl-key-q (reset world))
 	(:sdl-key-a (setf *lr-map* (1+ *lr-map*)))		
 	(:sdl-key-f (setf *lr-map* (+ *lr-map* 2)))
-	(:sdl-key-j (setf *is-thrusting* t))
+	(:sdl-key-j (setf *is-thrusting* t) (play-thrust *sound*) )
 	(:sdl-key-space (if (ship world)
 			    (shoot (ship world) world)))
 	)
@@ -784,24 +838,66 @@
       (key-processor-game world key :down down)))
 
 
+; play music
+#+nil
+(defun play-music()
+  (if (sdl-mixer:music-playing-p)
+      (progn
+	(sdl-mixer:pause-Music)
+	(setf *music-status* (format nil "Music Paused..." )))
+      (if (sdl-mixer:music-paused-p)
+        (progn
+          (sdl-mixer:resume-Music)
+          (setf *music-status* (format nil "Music Resumed..." )))
+        (progn
+          (sdl-mixer:play-music *music*)
+          (setf *music-status* (format nil "Music Playing..." ))))))
+
+
+
+(defun sample-finished-action ()
+  (sdl-mixer:register-sample-finished
+   (lambda (channel)
+     (declare (ignore channel))
+     nil)))
+
+(defun music-finished-action ()
+  (sdl-mixer:register-music-finished
+   (lambda ())))
+
 (defun main ()
   (with-init ()
     (setf *window*
-          (window *screen-width* *screen-height*
-                  :title-caption "asteroids"
-                  :icon-caption "asteroids"))
+	  (window *screen-width* *screen-height*
+		  :title-caption "asteroids"
+		  :icon-caption "asteroids"))
     (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
+ (format t "initialized...")
     (setf (frame-rate) 60)
     (clear-display *black*)
-    (let ((world (make-instance 'world)) )
+
+					;do not reopen the mixer...
+
+    
+    
+    
+      ;;(music-finished-action)
+;;    (sample-finished-action)
+    
+    ;;(play-music)
+    
+
+	       
+    (setf *sound* (make-instance 'sound))
+    (initialize *sound*)
+	
+    (let ((world (make-instance 'world)) ) 
       (with-events ()
-        (:quit-event () t)
-        (:key-down-event (:key key) (key-processor world key :down t))
+	(:quit-event () t)
+	(:key-down-event (:key key) (key-processor world key :down t))
 	(:key-up-event (:key key) (key-processor world key :down nil))
-        (:idle () 
+	(:idle () 
 	       (if  (> (level world) 0)
 		    (update-world world (get-ticks)))
 	       (render-world world)
-	       (update-display))))
-      
-   ))
+	       (update-display))))))
