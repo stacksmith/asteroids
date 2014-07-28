@@ -1,5 +1,5 @@
-;;;; ASTeroids
-;; Note: vector seems to mean an x-y delta pair...
+;; asteroids
+;; 
 ; Controls: 
 ;; Rotate a f   Thrust j  Fire <spacebar>
 ;;
@@ -91,9 +91,9 @@
 ;; O B J E C T S
 ;;; 
 (defclass mob ()
-  ((pos :initarg :pos :initform '(0.5 0.5) :accessor pos)
-   (radius :initarg :radius :accessor radius)
-   (velocity :initarg :velocity :initform '(0 0) :accessor velocity)))
+  ((pos :initform '(0.5 0.5) :initarg :pos  :accessor pos)
+   (radius :initform 0 :initarg :radius :accessor radius :writer set-radius)
+   (velocity :initform '(0 0) :initarg :velocity  :accessor velocity)))
 
 
 
@@ -130,7 +130,7 @@
                             '((big . 0.07) (medium . 0.04) (small . 0.01)))))
         (spd (cdr (assoc (size rock)
                          '((big . 0.05) (medium . 0.15) (small . 0.25))))))
-    (setf (radius rock) radius)
+    (set-radius radius rock)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
             collect (round (* (- 1.0 (random 0.3))
@@ -156,7 +156,7 @@
    (timeout :initform 1 :accessor timeout)))
 
 (defmethod initialize-instance :after ((missile missile) &key)
-  (setf  (radius missile) 0.001))
+  (set-radius 0.001 missile))
 
 (defmethod render ((missile missile))
   (let ((coords (map-coords missile))
@@ -172,9 +172,6 @@
 
 (defclass explosion (mob)())
 
-(defmethod initialize-instance :after ((explosion explosion) &key)
-  (setf  (radius explosion) 0))
-
 (defmethod render ((explosion explosion))
   (let ((coords (map-coords explosion))
         (radius (map-radius explosion)))
@@ -187,7 +184,7 @@
   ( (age :initform 0 :accessor age)))
 
 (defmethod initialize-instance :after ((powerup powerup) &key)
-  (setf  (radius powerup) 0.02))
+  (set-radius 0.02 powerup))
 
 ;;-------------------------------------------------------------------
 (defclass missile-powerup (powerup) ())
@@ -272,7 +269,7 @@
    ))
 
 (defmethod initialize-instance :after ((ship ship) &key)
-  (setf  (radius ship) 0.015))
+  (set-radius 0.015 ship))
 
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
