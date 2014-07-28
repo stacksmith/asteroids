@@ -235,6 +235,7 @@
       (draw-line (car i) (cadr i) :color color :aa t)
        ))
 
+#+nil
 (defmethod polygon1 ((ship ship) coords radius direction)
   "return a list of vertices (points)"
   (let ((nose (radial-point-from coords radius direction))
@@ -318,7 +319,7 @@
 ;;-------------------------------------------------------------------
 ;; X - S H I P
 (defclass x-ship (proto-ship) 
-  ((timeout :initform 2 :accessor timeout)))
+  ((timeout :initform 1 :accessor timeout)))
 
 (defmethod render ((x-ship x-ship))
   (let* ((coords (map-coords x-ship))
@@ -326,10 +327,10 @@
 	 (direction (direction x-ship))
 	 )
     
-    (draw-list (polygon2 coords radius direction) :color *red*)
-    )
-
-)
+    (draw-list (polygon2 coords radius direction) :color (color 
+							  :r (round  (* 255 (timeout x-ship))) 
+							  :g 0
+							  :b 0))))
 
 
 
