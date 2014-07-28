@@ -227,28 +227,49 @@
    (radius :initform 0.02)
    (rotation :initform 0.0 :accessor rotation)) )
 
+(defclass exploding-ship (mob)
+  ((display-list :initform nil :accessor display-list)
+   (direction :initform 0 :accessor direction)))
 
-;; A multigon is drawn like a polygon, but sides are drawn as separate
-;; segments
-(defun draw-multigon (list &key (color *green*))
-  (let ((previous (car list)))
-    (dolist (item list)
-      (draw-line previous item :color color :aa t)
-      (setf previous item))
-    (draw-line previous (car list) :color color :aa t))) ;close the polygon to first item
+;; Draw a list of line segments represented as pairs of points
+(defun draw-list (list &key (color *green*))
+  (loop for i on list by #'cddr do
+      (draw-line (car i) (cdar i) :color color :aa t))) 
+
+(defmethod polygon1 ((ship ship) coords radius direction)
+  "return a list of vertices (points)"
+  (let ((nose (radial-point-from coords radius direction))
+	(left (radial-point-from coords radius (- direction 140)))
+	(right (radial-point-from coords radius (+ direction 140)))
+	(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
+	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
+	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
+	)
+    (list nose left tail-left tail-right right)))
+
+(defmethod polygon2 ((ship ship) coords radius direction)
+(let ((nose (radial-point-from coords radius direction))
+	(left (radial-point-from coords radius (- direction 140)))
+	(right (radial-point-from coords radius (+ direction 140)))
+	(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
+	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
+	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
+	)
+    (list nose left  left tail-left  tail-left tail-right  tail-right right  right left )))
 
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
 	 (radius (map-radius ship))
 	 (direction (direction ship))
-	 (nose (radial-point-from coords radius direction))
-	 (left (radial-point-from coords radius (- direction 140)))
-	 (right (radial-point-from coords radius (+ direction 140)))
-	 (tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
-	 (tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
-	 (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180))))
+	 ;(nose (radial-point-from coords radius direction))
+	 ;(left (radial-point-from coords radius (- direction 140)))
+	 ;(right (radial-point-from coords radius (+ direction 140)))
+	 ;(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
+	 ;(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
+	 (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
+	 )
     
-    (draw-multigon (list nose left tail-left tail-right right))
+    (draw-polygon (polygon1 ship coords radius direction) :color *green* :aa t)
     (if *is-thrusting* ;draw thrusting jets
 	(draw-line tail (radial-point-from tail 
 					   (round (* radius (random 1.0))) 
