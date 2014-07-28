@@ -127,13 +127,13 @@
 
 (defmethod initialize-instance :after ((rock rock) &key)
   (let ((radius (cdr (assoc (size rock)
-                            '((big . 0.1) (medium . 0.06) (small . 0.015)))))
+                            '((big . 0.07) (medium . 0.04) (small . 0.01)))))
         (spd (cdr (assoc (size rock)
                          '((big . 0.05) (medium . 0.15) (small . 0.25))))))
     (setf (radius rock) radius)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
-            collect (round (* (- 1.0 (random 0.4))
+            collect (round (* (- 1.0 (random 0.3))
                               (map-radius rock)))))
     ;(print (radii rock))
     (setf (velocity rock)
@@ -155,10 +155,11 @@
 ;; M I S S I L E
 ;; 
 (defclass missile (mob)
-  ((radius :initform 0.001)
-   (ship :initarg :ship :accessor ship)
+  ((ship :initarg :ship :accessor ship)
    (timeout :initform 1 :accessor timeout)))
 
+(defmethod initialize-instance :after ((missile missile) &key)
+  (setf  (radius missile) 0.001))
 
 (defmethod render ((missile missile))
   (let ((coords (map-coords missile))
@@ -169,8 +170,6 @@
           (draw-circle coords (+ (random 3))
                        :color *magenta*))))
 
-(defmethod super-p ((missile missile))
-  (powerup-active-p (ship missile) 'super-missiles))
 
 
 ;;-------------------------------------------------------------------
@@ -178,8 +177,10 @@
 ;;
 
 
-(defclass explosion (mob)
-  ((radius :initform 0)))
+(defclass explosion (mob)())
+
+(defmethod initialize-instance :after ((explosion explosion) &key)
+  (setf  (radius explosion) 0))
 
 (defmethod render ((explosion explosion))
   (let ((coords (map-coords explosion))
@@ -192,15 +193,36 @@
 
 ;;-------------------------------------------------------------------
 (defclass powerup (mob)
-  ((radius :initform 0.03)
-   (age :initform 0 :accessor age)))
+  ( (age :initform 0 :accessor age)))
 
+(defmethod initialize-instance :after ((powerup powerup) &key)
+  (setf  (radius powerup) 0.02))
 
 ;;-------------------------------------------------------------------
 (defclass missile-powerup (powerup) ())
 
+(defmethod render ((powerup missile-powerup))
+  (let ((coords (map-coords powerup))
+        (radius (map-radius powerup)))
+    (draw-circle coords radius
+                 :color *magenta* :aa t)
+    (draw-circle coords (round (* radius 0.3))
+                 :color *white* :aa t)))
 ;;-------------------------------------------------------------------
 (defclass freeze-powerup (powerup) ())
+
+(defmethod render ((powerup freeze-powerup))
+  (let ((coords (map-coords powerup))
+        (radius (map-radius powerup)))
+    (draw-circle coords radius
+                 :color *cyan* :aa t)
+    (draw-polygon (loop for i from 0 to 11
+                    collect (radial-point-from coords
+                                               (round (* radius (if (= (mod i 2) 0)
+								    0.7 0.2)))
+					       (* i 30)))
+                  :color *white* :aa t)))
+
 
 ;;-------------------------------------------------------------------
 (defclass shield-powerup (powerup) ())
@@ -215,7 +237,7 @@
                     ,(radial-point-from coords (round (* radius 0.8)) -40)
                     ,(radial-point-from coords (round (* radius 0.8)) -135)
                     ,(radial-point-from coords (round (* radius 0.8)) 135))
-                  :color *white*)))
+                  :color *white*  :aa t)))
 
 ;;-------------------------------------------------------------------
 ;; P R O T O - S H I P
@@ -225,8 +247,9 @@
    (direction :initform 0 :initarg :direction :accessor direction)
    (rotation :initform 0.0 :accessor rotation) 
    ))
+
 (defmethod initialize-instance :after ((ship ship) &key)
-  (setf  (radius ship) 0.02))
+  (setf  (radius ship) 0.015))
 
 ;; Draw a list of line segments represented as pairs of points
 (defun draw-list (list &key (color *green*))
@@ -302,7 +325,10 @@
   "Set ship's acceleration to null"
   (setf (acceleration-of ship) '(0 0)))
 
-
+(defmethod powerup-active-p ((ship ship) powerup)
+  (let ((timer (gethash powerup (timers ship) nil)))
+    (and timer
+         (not (done timer)))))
 
 
 
@@ -553,6 +579,10 @@
                    (2 'shield-powerup))
                  :pos pos))
 
+(defmethod super-p ((missile missile) )
+  (powerup-active-p (ship missile) 'super-missiles))
+
+
 (defmethod break-down ((rock rock) (world world))
   (with-slots ((pos pos) (size size)) rock
     (if (eq size 'small)
@@ -654,20 +684,11 @@
   (remove-from world powerup)
   (add-score world powerup))
 
-(defmethod powerup-active-p ((ship ship) powerup)
-  (let ((timer (gethash powerup (timers ship) nil)))
-    (and timer
-         (not (done timer)))))
 
 
 
-(defmethod render ((powerup missile-powerup))
-  (let ((coords (map-coords powerup))
-        (radius (map-radius powerup)))
-    (draw-circle coords radius
-                 :color *magenta*)
-    (draw-circle coords (round (* radius 0.3))
-                 :color *white*)))
+
+
 
 (defmethod add-freeze ((world world) &key (seconds 0))
   (if (frozen-p world)
@@ -678,17 +699,6 @@
 (defmethod collide :before ((ship ship) (powerup freeze-powerup) (world world))
   (add-freeze world :seconds 6))
 
-(defmethod render ((powerup freeze-powerup))
-  (let ((coords (map-coords powerup))
-        (radius (map-radius powerup)))
-    (draw-circle coords radius
-                 :color *cyan*)
-    (draw-polygon (loop for i from 0 to 11
-                    collect (radial-point-from coords
-                                               (round (* radius (if (= (mod i 2) 0)
-								    0.7 0.2)))
-					       (* i 30)))
-                  :color *white*)))
 
 
 ;; ship-rock collision
@@ -714,6 +724,7 @@
                (intersects-p ship mob))
       (collide ship mob world))
     ;; if a collision destroyed the ship, stop checking for collisions
+    #+nil
     (when (not (in-world-p world ship))
       (return ship))))
 
@@ -725,7 +736,7 @@
 
 (defmethod collide :before ((missile missile) (rock rock) (world world))
   (remove-from world rock)
-  (when (not (super-p missile))
+  (when (not (super-p missile ))
     (remove-from world missile))
   (mapcar (lambda (mob)
             (add-to world mob))
@@ -764,16 +775,7 @@
     (let ((world (make-instance 'world)) )
       (with-events ()
         (:quit-event () t)
-	#+nil
-        (:mouse-motion-event (:x x :y y)
-			     (when (ship world)
-			       (setf (direction (ship world))
-				     (calc-angle (pos (ship world)) (relative-coords x y)))))
-        #+nil
-	(:mouse-button-down-event (:x x :y y)
-				  )
-        (:mouse-button-up-event ()
-				)
+	
         (:key-down-event (:key key)
 			 (case key  
 			   (:sdl-key-q (reset world))
@@ -797,6 +799,6 @@
         (:idle () 
 	       (update-world world (get-ticks))
 	       (render-world world)
-	       (update-display)))
+	       (update-display))))
       
-      )))
+   ))
