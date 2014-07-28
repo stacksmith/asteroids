@@ -231,18 +231,8 @@
                   :color *white*  :aa t)))
 
 ;;-------------------------------------------------------------------
-;; P R O T O - S H I P
-;; Parent class for ship and x-ship.  
-;;
-(defclass proto-ship (mob)
-  ((timers :initform (make-hash-table) :accessor timers)
-   (acceleration :initform '(0 0) :accessor acceleration-of)
-   (direction :initform 0 :initarg :direction :accessor direction)
-   (rotation :initform 0.0 :accessor rotation) 
-   ))
 
-
-;; Draw a list of line segments represented as pairs of points
+;; Draw a list of line segments represented as a linear list of pairs of points
 (defun draw-list (list &key (color *green*))
   (loop for i on list by #'cddr do
        ;(print (car i) )
@@ -274,7 +264,12 @@
 ;;-------------------------------------------------------------------
 ;; S H I P
 ;;
-(defclass ship (proto-ship) ())
+(defclass ship (mob) 
+  ((timers :initform (make-hash-table) :accessor timers)
+   (acceleration :initform '(0 0) :accessor acceleration-of)
+   (direction :initform 0 :initarg :direction :accessor direction)
+   (rotation :initform 0.0 :accessor rotation) 
+   ))
 
 (defmethod initialize-instance :after ((ship ship) &key)
   (setf  (radius ship) 0.015))
@@ -351,7 +346,9 @@
 	     :color (color 
 		     :r (round  (* 255 (timeout x-ship))) 
 		     :g 0
-		     :b 0)))
+		     :b 0))
+  (setf (direction x-ship ) ;spinning out of control...
+	(+ (direction x-ship) 10)))
 
 
 
@@ -501,17 +498,17 @@
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
   (cond 
-    ((= *lr-map* 0) (setf (rotation (ship world)) 0))
-    ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
-    ((= *lr-map* 2) (setf (rotation (ship world)) -1)) 
+    ((= *lr-map* 0) (setf (rotation ship) 0))
+    ((= *lr-map* 1) (setf (rotation ship) 1)) 
+    ((= *lr-map* 2) (setf (rotation ship) -1)) 
     (t (setf (rotation (ship world)) 0)))
 
-  (setf (direction (ship world))
-	(+ (direction (ship world)) (* 200 time-delta (rotation (ship world)))))
+  (setf (direction ship )
+	(+ (direction ship) (* 200 time-delta (rotation ship))))
   
   (if *is-thrusting*
-      (thrust (ship world))
-      (thrust-0 (ship world)))
+      (thrust ship)
+      (thrust-0 ship))
 
   (setf (velocity ship)
 	(xy-off-scale (xy-off-sum (velocity ship)
