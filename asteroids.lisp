@@ -227,14 +227,13 @@
    (radius :initform 0.02)
    (rotation :initform 0.0 :accessor rotation)) )
 
-(defclass exploding-ship (mob)
-  ((display-list :initform nil :accessor display-list)
-   (direction :initform 0 :accessor direction)))
 
 ;; Draw a list of line segments represented as pairs of points
 (defun draw-list (list &key (color *green*))
   (loop for i on list by #'cddr do
-      (draw-line (car i) (cdar i) :color color :aa t))) 
+       ;(print (car i) )
+      (draw-line (car i) (cadr i) :color *green* :aa t)
+       )) 
 
 (defmethod polygon1 ((ship ship) coords radius direction)
   "return a list of vertices (points)"
@@ -255,7 +254,7 @@
 	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
 	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	)
-    (list nose left  left tail-left  tail-left tail-right  tail-right right  right left )))
+    (list nose left  left tail-left  tail-left tail-right  tail-right right  right nose )))
 
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
@@ -269,7 +268,8 @@
 	 (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	 )
     
-    (draw-polygon (polygon1 ship coords radius direction) :color *green* :aa t)
+    ;(draw-polygon (polygon1 ship coords radius direction) :color *green* :aa t)
+    (draw-list (polygon2 ship coords radius direction))
     (if *is-thrusting* ;draw thrusting jets
 	(draw-line tail (radial-point-from tail 
 					   (round (* radius (random 1.0))) 
@@ -670,7 +670,9 @@
   (unless (powerup-active-p ship 'shield)
     (remove-from world ship)
     (add-to world (make-instance 'explosion :pos (pos ship)))
-    (decf (lives world))))
+    (decf (lives world))
+  
+    ))
 
 (defmethod in-world-p ((world world) (mob mob))
   (find mob (mobs world)))
