@@ -596,11 +596,7 @@
   (sdl-gfx:draw-string-solid-* (format nil "Score ~d" (score world))
                                (- *screen-width* 127) (- *screen-height* 28)
                                :color *green*)
-  (sdl-gfx:draw-string-solid-* (format nil
-                                       "~a [Q]uit"
-                                       (if (= (level world) 0)
-                                           "[P]lay"
-                                           "[P]ause"))
+  (sdl-gfx:draw-string-solid-* (format nil  "[P]ause [Q]uit")
                                (- *screen-width* 127) 10
                                :color *green*)
   (if (= (level world) 0)
@@ -746,22 +742,32 @@
   (add-score world rock))
 
 
+(defun key-processor-attract (world key &key down)
+  (if down
+      (case key
+	(:sdl-key-q (SDL:PUSH-QUIT-EVENT))
+	(:sdl-key-p (progn (reset world) (start-next-level world))))))
 
+(defun key-processor-game (world key &key down)
+  (if down
+      (case key
+	(:sdl-key-q (reset world))
+	(:sdl-key-a (setf *lr-map* (1+ *lr-map*)))		
+	(:sdl-key-f (setf *lr-map* (+ *lr-map* 2)))
+	(:sdl-key-j (setf *is-thrusting* t))
+	(:sdl-key-space (if (ship world)
+			    (shoot (ship world) world)))
+	)
+      (case key
+	(:sdl-key-escape (push-quit-event))
+	(:sdl-key-a (setf *lr-map* (1- *lr-map*)))
+	(:sdl-key-f (setf *lr-map* (- *lr-map* 2)))
+	(:sdl-key-j (setf *is-thrusting* nil)))))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+(defun key-processor (world key &key down)
+  (if (= (level world) 0)
+      (key-processor-attract world key :down down)
+      (key-processor-game world key :down down)))
 
 
 (defun main ()
@@ -777,25 +783,9 @@
       (with-events ()
         (:quit-event () t)
 	
-        (:key-down-event (:key key)
-			 (case key  
-			   (:sdl-key-q (reset world))
-			   (:sdl-key-a (setf *lr-map* (1+ *lr-map*)))		
-			   (:sdl-key-f (setf *lr-map* (+ *lr-map* 2)))
-			   (:sdl-key-j (setf *is-thrusting* t))
-			   (:sdl-key-space (if (ship world)
-					       (shoot (ship world) world)))))
+        (:key-down-event (:key key) (key-processor world key :down t))
 
-	(:key-up-event (:key key)
-		       (case key
-			 (:sdl-key-escape (push-quit-event))
-			 (:sdl-key-p (if (= (level world) 0)
-					 (progn 
-					   (reset world)
-					   (start-next-level world))))
-			 (:sdl-key-a (setf *lr-map* (1- *lr-map*)))
-			 (:sdl-key-f (setf *lr-map* (- *lr-map* 2)))
-			 (:sdl-key-j (setf *is-thrusting* nil))))
+	(:key-up-event (:key key) (key-processor world key :down nil))
  
         (:idle () 
 	       (update-world world (get-ticks))
