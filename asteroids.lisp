@@ -148,9 +148,6 @@
                                              (+ (direction rock)
                                                 (* i (/ 360 *rock-sides*)))))
                 :color *white* ))
-
-
-
 ;;-------------------------------------------------------------------
 ;; M I S S I L E
 ;; 
@@ -169,13 +166,9 @@
     (when (super-p missile)
           (draw-circle coords (+ (random 3))
                        :color *magenta*))))
-
-
-
 ;;-------------------------------------------------------------------
 ;;E X P L O S I O N
 ;;
-
 
 (defclass explosion (mob)())
 
@@ -189,8 +182,6 @@
     (draw-circle coords
                  (+ radius (random 3))
                  :color *explosion-color* :aa t)))
-
-
 ;;-------------------------------------------------------------------
 (defclass powerup (mob)
   ( (age :initform 0 :accessor age)))
@@ -241,6 +232,8 @@
 
 ;;-------------------------------------------------------------------
 ;; P R O T O - S H I P
+;; Parent class for ship and x-ship.  
+;;
 (defclass proto-ship (mob)
   ((timers :initform (make-hash-table) :accessor timers)
    (acceleration :initform '(0 0) :accessor acceleration-of)
@@ -289,17 +282,16 @@
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
 	 (radius (map-radius ship))
-	 (direction (direction ship))
-	 (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
-	 )
+	 (direction (direction ship)))
     
     ;(draw-polygon (polygon1 ship coords radius direction) :color *green* :aa t)
     (draw-list (polygon2 coords radius direction))
     (if *is-thrusting* ;draw thrusting jets
-	(draw-line tail (radial-point-from tail 
-					   (round (* radius (random 1.0))) 
-					   (+ direction 180 (- (random 20) 10)))
-		   :color *red* :aa nil))
+	(let ((tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180))))
+	  (draw-line tail
+		     (radial-point-from tail (round (* radius (random 1.0))) 
+					(+ direction 180 (- (random 20) 10)))
+		     :color *red* :aa nil)))
     
     (when (powerup-active-p ship 'shield)
       (draw-circle coords
@@ -348,19 +340,18 @@
 
 ;;-------------------------------------------------------------------
 ;; X - S H I P
-(defclass x-ship (proto-ship) 
-  ((timeout :initform 1 :accessor timeout)))
+(defclass x-ship (mob) 
+  ((timeout :initform 1 :accessor timeout)
+   (direction :initarg :direction :accessor direction)))
 
 (defmethod render ((x-ship x-ship))
-  (let* ((coords (map-coords x-ship))
-	 (radius (map-radius x-ship))
-	 (direction (direction x-ship))
-	 )
-    
-    (draw-list (polygon2 coords radius direction) :color (color 
-							  :r (round  (* 255 (timeout x-ship))) 
-							  :g 0
-							  :b 0))))
+  (draw-list (polygon2 (map-coords x-ship) 
+		       (map-radius x-ship) 
+		       (direction x-ship))
+	     :color (color 
+		     :r (round  (* 255 (timeout x-ship))) 
+		     :g 0
+		     :b 0)))
 
 
 
@@ -429,24 +420,9 @@
 (defmethod remove-from :after ((world world) (ship ship))
   (setf (ship world) nil))
 
-;; update missile
-(defmethod update :before  ((missile missile) time-delta (world world))
-  (let ((remaining (- (timeout missile) time-delta)))
-    (if (<= remaining 0)
-	(remove-from world missile)
-	(setf (timeout missile) remaining)))
-  (dolist (mob (mobs world))
-    (when (and (not (eq missile  mob))
-	       (intersects-p missile mob))
-      (collide missile mob world))))
 
-;; update x-ship
-(defmethod update :after  ((x-ship x-ship) time-delta (world world))
-  (let ((remaining (- (timeout x-ship) time-delta)))
-    (if (<= remaining 0)
-	(remove-from world x-ship)
-	(setf (timeout x-ship) remaining)))
-)
+
+
 
 
 
@@ -473,6 +449,96 @@
 (defmethod level-cleared-p ((world world))
   ;(print (num-of-rocks world))
   (< (num-of-rocks world) 1))
+
+;;-------------------------------------------------------------------
+;; UPDATE multimethod
+;;
+;; all mobs continue moving and wrapping...
+(defmethod update ((mob mob) time-delta (world world))
+  (setf (pos mob)
+        (mapcar (lambda (x) (mod x 1))
+                (xy-off-sum (pos mob) 
+			    (xy-off-scale (velocity mob) time-delta)))))
+
+;; update missile
+(defmethod update :before  ((missile missile) time-delta (world world))
+  (let ((remaining (- (timeout missile) time-delta)))
+    (if (<= remaining 0)
+	(remove-from world missile)
+	(setf (timeout missile) remaining)))
+  (dolist (mob (mobs world))
+    (when (and (not (eq missile  mob))
+	       (intersects-p missile mob))
+      (collide missile mob world))))
+
+;; update x-ship
+(defmethod update :after  ((x-ship x-ship) time-delta (world world))
+  (let ((remaining (- (timeout x-ship) time-delta)))
+    (if (<= remaining 0)
+	(remove-from world x-ship)
+	(setf (timeout x-ship) remaining)))
+)
+;; update rock.  rocks also rotate.  Note: if frozen, mob update not called.
+(defmethod update ((rock rock) time-delta (world world))
+  (declare (ignore time-delta))
+  (when (not (frozen-p world))
+    (incf (direction rock) (rotation rock))
+    (call-next-method)))
+
+;; update explosion
+(defmethod update ((explosion explosion) time-delta (world world))
+  (when (> (incf (radius explosion) time-delta)
+           *explosion-max-radius*)
+    (remove-from world explosion)))
+
+;; update powerup
+(defmethod update ((powerup powerup) time-delta (world world))
+  (when (> (ceiling (incf (age powerup) time-delta))
+           *powerup-max-age*) 
+    (remove-from world powerup)))
+
+;; update ship
+(defmethod update :around ((ship ship) time-delta (world world))
+  ;; lr-map contains left/right button mapping, for rollover...
+  (cond 
+    ((= *lr-map* 0) (setf (rotation (ship world)) 0))
+    ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
+    ((= *lr-map* 2) (setf (rotation (ship world)) -1)) 
+    (t (setf (rotation (ship world)) 0)))
+
+  (setf (direction (ship world))
+	(+ (direction (ship world)) (* 200 time-delta (rotation (ship world)))))
+  
+  (if *is-thrusting*
+      (thrust (ship world))
+      (thrust-0 (ship world)))
+
+  (setf (velocity ship)
+	(xy-off-scale (xy-off-sum (velocity ship)
+				  (acceleration-of ship))
+		      *friction*))
+
+  (maphash (lambda (name timer)
+             (declare (ignore name))
+             (update-timer timer time-delta))
+           (timers ship))
+  (call-next-method)
+  (ship-moved world ship))
+
+(defmethod ship-moved ((world world) (ship ship))
+  (dolist (mob (mobs world))
+    (when (and (not (eq ship mob))
+               (intersects-p ship mob))
+      (collide ship mob world))
+    ;; if a collision destroyed the ship, stop checking for collisions
+    #+nil
+    (when (not (in-world-p world ship))
+      (return ship))))
+
+
+
+
+
 
 
 (defmethod update-world ((world world) time-delta)
@@ -502,6 +568,7 @@
 		  
                      (add-to world ship)
                      (add-shield ship :seconds 6)))))))
+
 
 (defmethod after ((world world) timer-name &key (seconds 0) do)
   (multiple-value-bind (timer exists) (gethash timer-name (timers world))
@@ -599,57 +666,9 @@
           ,(make-instance 'rock :pos pos :size smaller))))))
 
 
-;; all mobs continue moving and wrapping...
-(defmethod update ((mob mob) time-delta (world world))
-  (setf (pos mob)
-        (mapcar (lambda (x) (mod x 1))
-                (xy-off-sum (pos mob) 
-			    (xy-off-scale (velocity mob) time-delta)))))
-
-;; rocks also rotate.  Note: if frozen, mob update not called.
-(defmethod update ((rock rock) time-delta (world world))
-  (declare (ignore time-delta))
-  (when (not (frozen-p world))
-    (incf (direction rock) (rotation rock))
-    (call-next-method)))
 
 
-(defmethod update ((explosion explosion) time-delta (world world))
-  (when (> (incf (radius explosion) time-delta)
-           *explosion-max-radius*)
-    (remove-from world explosion)))
 
-(defmethod update ((powerup powerup) time-delta (world world))
-  (when (> (ceiling (incf (age powerup) time-delta))
-           *powerup-max-age*) 
-    (remove-from world powerup)))
-
-(defmethod update :around ((ship ship) time-delta (world world))
-  ;; lr-map contains left/right button mapping, for rollover...
-  (cond 
-    ((= *lr-map* 0) (setf (rotation (ship world)) 0))
-    ((= *lr-map* 1) (setf (rotation (ship world)) 1)) 
-    ((= *lr-map* 2) (setf (rotation (ship world)) -1)) 
-    (t (setf (rotation (ship world)) 0)))
-
-  (setf (direction (ship world))
-	(+ (direction (ship world)) (* 200 time-delta (rotation (ship world)))))
-  
-  (if *is-thrusting*
-      (thrust (ship world))
-      (thrust-0 (ship world)))
-
-  (setf (velocity ship)
-	(xy-off-scale (xy-off-sum (velocity ship)
-				  (acceleration-of ship))
-		      *friction*))
-
-  (maphash (lambda (name timer)
-             (declare (ignore name))
-             (update-timer timer time-delta))
-           (timers ship))
-  (call-next-method)
-  (ship-moved world ship))
 
 
 (defmethod collide ((mob mob) (other mob) (world world)) t)
@@ -719,20 +738,6 @@
 
 (defmethod in-world-p ((world world) (mob mob))
   (find mob (mobs world)))
-
-(defmethod ship-moved ((world world) (ship ship))
-  (dolist (mob (mobs world))
-    (when (and (not (eq ship mob))
-               (intersects-p ship mob))
-      (collide ship mob world))
-    ;; if a collision destroyed the ship, stop checking for collisions
-    #+nil
-    (when (not (in-world-p world ship))
-      (return ship))))
-
-
-
-
 
 
 
