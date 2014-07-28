@@ -17,11 +17,10 @@
 
 (in-package :asteroids)
 
-(defparameter *screen-width* 640)
-(defparameter *screen-height* 480)
+(defparameter *screen-width* 800)
+(defparameter *screen-height* 600)
 
 (defparameter *window* nil)
-(defparameter *window-width* 640)
 (defparameter *thrust-factor* 0.01)
 (defparameter *friction* 0.99)
 (defparameter *missile-velocity* 0.8)
@@ -31,7 +30,7 @@
 
 (defparameter *powerup-max-age* 9)
 (defparameter *explosion-max-radius* 0.1)
-(defparameter *explosion-color* (sdl:color :r 120 :g 30 :b 30)) 
+(defparameter *explosion-color* (sdl:color :r 180 :g 30 :b 30)) 
 (defparameter *lr-map* 0) ;map left=1 right=2 both=3
 (defparameter *is-thrusting* nil)
 
@@ -228,25 +227,34 @@
    (radius :initform 0.02)
    (rotation :initform 0.0 :accessor rotation)) )
 
+
+;; A multigon is drawn like a polygon, but sides are drawn as separate
+;; segments
+(defun draw-multigon (list &key (color *green*))
+  (let ((previous (car list)))
+    (dolist (item list)
+      (draw-line previous item :color color :aa t)
+      (setf previous item))
+    (draw-line previous (car list) :color color :aa t))) ;close the polygon to first item
+
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
-         (radius (map-radius ship))
-         (direction (direction ship))
-         (nose (radial-point-from coords radius direction))
-         (left (radial-point-from coords radius (- direction 140)))
-         (right (radial-point-from coords radius (+ direction 140)))
+	 (radius (map-radius ship))
+	 (direction (direction ship))
+	 (nose (radial-point-from coords radius direction))
+	 (left (radial-point-from coords radius (- direction 140)))
+	 (right (radial-point-from coords radius (+ direction 140)))
 	 (tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
 	 (tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
-         (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180))))
+	 (tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180))))
     
-    (draw-polygon (list nose left tail-left tail-right right)
-                  :color *green* :aa t)
+    (draw-multigon (list nose left tail-left tail-right right))
     (if *is-thrusting* ;draw thrusting jets
 	(draw-line tail (radial-point-from tail 
 					   (round (* radius (random 1.0))) 
 					   (+ direction 180 (- (random 20) 10)))
 		   :color *red* :aa nil))
-   
+    
     (when (powerup-active-p ship 'shield)
       (draw-circle coords
 		   (round (+ radius (random 3)))
@@ -309,7 +317,7 @@
    (score :initform 0 :accessor score)
    (best-level :initform 0 :accessor best-level)
    (high-score :initform 0 :accessor high-score)
-   (lives :initform 0 :accessor lives)
+   (lives :initform 1  :accessor lives)
    (paused :initform nil :accessor paused)))
 
 (defmethod reset ((world world))
@@ -318,7 +326,7 @@
   (setf (paused world) nil)
   (setf (level world) 0)
   (setf (score world) 0)
-  (setf (lives world) 0)
+  (setf (lives world) 1)
   (setf *ticks* (sdl-get-ticks))
   (setf (num-of-rocks world) 0)
 
@@ -631,9 +639,8 @@
     (draw-polygon (loop for i from 0 to 11
                     collect (radial-point-from coords
                                                (round (* radius (if (= (mod i 2) 0)
-                                                                       0.7
-                                                                       0.2)))
-                                               (* i 30)))
+								    0.7 0.2)))
+					       (* i 30)))
                   :color *white*)))
 
 
@@ -694,7 +701,7 @@
 (defun main ()
   (with-init ()
     (setf *window*
-          (window 640 480
+          (window *screen-width* *screen-height*
                   :title-caption "asteroids"
                   :icon-caption "asteroids"))
     (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
