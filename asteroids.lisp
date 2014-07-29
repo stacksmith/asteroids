@@ -91,8 +91,11 @@
   (sdl-mixer:play-sample (sample-fire sound))
 )
 (defmethod play-thrust ((sound sound))
-  (sdl-mixer:play-sample (sample-thrust sound))
-)
+  (sdl-mixer:play-sample (sample-thrust sound) :channel 1 :loop t))
+
+(defmethod play-thrust-stop ((sound sound))
+  (sdl-mixer:halt-sample :channel 1))
+
 (defmethod play-thumplo ((sound sound))
   (sdl-mixer:play-sample (sample-thumplo sound))
 )
@@ -899,7 +902,7 @@
 	 )
 	(:sdl-key-a (setf *lr-map* (1- *lr-map*)))
 	(:sdl-key-f (setf *lr-map* (- *lr-map* 2)))
-	(:sdl-key-j (setf *is-thrusting* nil)))))
+	(:sdl-key-j (setf *is-thrusting* nil) (play-thrust-stop *sound*)))))
 
 (defun key-processor (world key &key down)
   (if (= (level world) 0)
@@ -965,11 +968,11 @@
 	    (window *screen-width* *screen-height*
 		    :title-caption "asteroids"
 		    :icon-caption "asteroids"
-		    :fps (make-instance 'fps-timestep :world *world*)
+		    ;:fps (make-instance 'fps-timestep :world *world*)
 		    ))
       (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
 					;(format t "initialized...")
-      ;(setf (frame-rate) 60)
+      (setf (frame-rate) 60)
 					;(clear-display *black*)
 
       
