@@ -48,19 +48,10 @@
                                                                        *load-truename*))))
 (defclass sound ()
   ((opened :initform nil :accessor opened)
-   (sample :initform nil :accessor sample)
-   
- ;  (sample-explode1 :initform nil :accessor sample-explode1)
- ;  (sample-explode2 :initform nil :accessor sample-explode2)
- ;  (sample-explode3 :initform nil :accessor sample-explode3)
- ;  (sample-fire :initform nil :accessor sample-fire)
- ;  (sample-thrust :initform nil :accessor sample-thrust)
- ;  (sample-thumplo :initform nil :accessor sample-thumplo)
- ;  (sample-thumphi :initform nil :accessor sample-thumphi)
-)
+   (sample :initform nil :accessor sample)) )
 
- )
-
+(defmethod reset ((sound sound))
+  (sdl-mixer:halt-sample))
 (defmethod initialize ((sound sound))
   (sdl-mixer:OPEN-AUDIO)
   (setf (opened sound) (sdl-mixer:open-audio :chunksize 1024 :enable-callbacks nil))
@@ -97,11 +88,14 @@
 (defmethod play-thrust-stop ((sound sound))
   (sdl-mixer:halt-sample :channel 1))
 
+(defmethod play-thump-stop ((sound sound))
+  (sdl-mixer:halt-sample :channel 2))
 (defmethod play-thumplo ((sound sound)) 
+  (play-thump-stop sound)
   (sdl-mixer:play-sample (sixth (sample sound)) :channel 2 ))
-
 (defmethod play-thumphi ((sound sound))
-  (sdl-mixer:play-sample (seventh (sample sound)) :channel 3))
+  (play-thump-stop sound)
+  (sdl-mixer:play-sample (seventh (sample sound)) :channel 2))
 
 (defmethod play-ufo1 ((sound sound))
   (sdl-mixer:play-sample (eighth (sample sound)) :channel 4 :loop t))
@@ -466,9 +460,7 @@
   (setf (num-of-rocks world) 0)
 
   (setf *ticks* (sdl-get-ticks))
-
-
-)
+  (reset *sound*))
 ;; Adding to world: cons to mob list and track ship and rock-count
 ;;
 (defmethod add-to ((world world) (mob mob))
@@ -494,8 +486,7 @@
   (setf (ship world) nil))
 
 (defmethod remove-from :after ((world world) (powerup powerup))
-  (play-ufo1-stop *sound*
-))
+  (play-ufo1-stop *sound*))
 
 
 
@@ -640,7 +631,7 @@
     (after world
            'cleared
            :seconds 3
-           :do (lambda ()
+           :do (progn
                  (incf (lives world))
                  (start-next-level world)
 		 (reset-ambient (ambient world)))))
@@ -649,13 +640,14 @@
     (after world
            'death
            :seconds 3
-           :do (lambda ()
+           :do (progn
                  (if (< (lives world) 1)
                    (setf (level world) 0) ; game over
                    (let ((ship (make-instance 'ship)))
 		  
                      (add-to world ship)
-                     (add-shield ship :seconds 6)))))))
+                     (add-shield ship :seconds 6)
+		     (reset *sound*)))))))
 
 
 
@@ -952,11 +944,12 @@
     (let ((sdl-ticks (sdl-get-ticks) ))
       (if (< target sdl-ticks)
 	  (progn 
+(print (- sdl-ticks target))
 	    (if (evenp (incf phasex))
 		(play-thumplo *sound*)
 		(play-thumphi *sound*))
 	    ;(setf (target (- period (- sdl-ticks target))))
-	    (setf target  (+ (sdl-get-ticks) period))
+	    (setf target  (+ sdl-ticks period))
 	    (if (> period 400) (decf period 40))))))) 
 
 (defmethod reset-ambient ((ambient ambient))
@@ -975,9 +968,6 @@
    (lambda ())))
 
 
-(defun physics (ticks dt)
-  (declare (ignore dt))
-)
 
 (defun main ()
   (setf *world* (make-instance 'world))
@@ -988,6 +978,7 @@
 	    (window *screen-width* *screen-height*
 		    :title-caption "asteroids"
 		    :icon-caption "asteroids"
+;		    :fps (make-instance 'fps-fixed :target-frame-rate 120 :world *world*)
 ;		    :fps (make-instance 'fps-unlocked :ps-fn 'physics)
 ;		    :fps (make-instance 'fps-timestep :world *world*)
 		    ))
