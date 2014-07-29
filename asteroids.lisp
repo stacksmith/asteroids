@@ -52,6 +52,7 @@
 
 (defmethod reset ((sound sound))
   (sdl-mixer:halt-sample))
+
 (defmethod initialize ((sound sound))
   (sdl-mixer:OPEN-AUDIO)
   (setf (opened sound) (sdl-mixer:open-audio :chunksize 1024 :enable-callbacks nil))
@@ -631,7 +632,7 @@
     (after world
            'cleared
            :seconds 3
-           :do (progn
+           :do (lambda ()
                  (incf (lives world))
                  (start-next-level world)
 		 (reset-ambient (ambient world)))))
@@ -640,7 +641,7 @@
     (after world
            'death
            :seconds 3
-           :do (progn
+           :do (lambda ()
                  (if (< (lives world) 1)
                    (setf (level world) 0) ; game over
                    (let ((ship (make-instance 'ship)))
@@ -944,7 +945,7 @@
     (let ((sdl-ticks (sdl-get-ticks) ))
       (if (< target sdl-ticks)
 	  (progn 
-(print (- sdl-ticks target))
+;(print (- sdl-ticks target))
 	    (if (evenp (incf phasex))
 		(play-thumplo *sound*)
 		(play-thumphi *sound*))
