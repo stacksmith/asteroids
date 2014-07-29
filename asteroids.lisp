@@ -12,7 +12,7 @@
 
 
 (defpackage :asteroids
-  (:use :cl :sdl)
+  (:use :cl :sdl )
   (:export main)
   (:export *explosion-color*)
 )
@@ -42,17 +42,21 @@
 
 (defparameter *sound* nil)
 (defvar *world* nil)
-
+(defvar *audio-path* (make-pathname :host (pathname-host #.(or *compile-file-truename*
+							     *load-truename*))
+                                  :directory (pathname-directory #.(or *compile-file-truename*
+                                                                       *load-truename*))))
 (defclass sound ()
   ((opened :initform nil :accessor opened)
+   (sample :initform nil :accessor sample)
    
-   (sample-explode1 :initform nil :accessor sample-explode1)
-   (sample-explode2 :initform nil :accessor sample-explode2)
-   (sample-explode3 :initform nil :accessor sample-explode3)
-   (sample-fire :initform nil :accessor sample-fire)
-   (sample-thrust :initform nil :accessor sample-thrust)
-   (sample-thumplo :initform nil :accessor sample-thumplo)
-   (sample-thumphi :initform nil :accessor sample-thumphi)
+ ;  (sample-explode1 :initform nil :accessor sample-explode1)
+ ;  (sample-explode2 :initform nil :accessor sample-explode2)
+ ;  (sample-explode3 :initform nil :accessor sample-explode3)
+ ;  (sample-fire :initform nil :accessor sample-fire)
+ ;  (sample-thrust :initform nil :accessor sample-thrust)
+ ;  (sample-thumplo :initform nil :accessor sample-thumplo)
+ ;  (sample-thumphi :initform nil :accessor sample-thumphi)
 )
 
  )
@@ -61,17 +65,14 @@
   (sdl-mixer:OPEN-AUDIO)
   (setf (opened sound) (sdl-mixer:open-audio :chunksize 1024 :enable-callbacks nil))
   (format t "mixer opened...")
-  (setf (sample-explode1 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode1.wav"))
-  (setf (sample-explode2 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode2.wav"))
-  (setf (sample-explode3 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode3.wav"))
-  (setf (sample-fire sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/fire.wav"))
-  (setf (sample-thrust sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thrust.wav"))
-  (setf (sample-thumplo sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thumplo.wav"))
-  (setf (sample-thumphi sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thumphi.wav"))
-
+  (setf (sample sound)
+	(mapcar #'sdl-mixer:load-sample 
+		'("sounds/explode1.wav" "sounds/explode2.wav" "sounds/explode3.wav" "sounds/fire.wav" 
+		  "sounds/thrust.wav"   "sounds/thumplo.wav"  "sounds/thumphi.wav" "sounds/lsaucer.wav"
+		  "sounds/ssaucer.wav")))
   (sdl-mixer:allocate-channels 16)
-  (sdl-mixer:play-sample (sample-explode1 sound))
-)
+  (play-explode1 sound)
+  )
 (defmethod shut-down ((sound sound))
   (sdl-mixer:Halt-Music)
   ;(sdl-mixer:free music)
@@ -79,29 +80,39 @@
 
 )
 (defmethod play-explode1 ((sound sound))
-  (sdl-mixer:play-sample (sample-explode1 sound))
-)
+  (sdl-mixer:play-sample (first (sample sound))))
+
 (defmethod play-explode2 ((sound sound))
-  (sdl-mixer:play-sample (sample-explode2 sound))
-)
+  (sdl-mixer:play-sample (second (sample sound))))
+
 (defmethod play-explode3 ((sound sound))
-  (sdl-mixer:play-sample (sample-explode3 sound))
-)
+  (sdl-mixer:play-sample (third (sample sound))))
+
 (defmethod play-fire ((sound sound))
-  (sdl-mixer:play-sample (sample-fire sound))
-)
+  (sdl-mixer:play-sample (fourth (sample sound))))
+
 (defmethod play-thrust ((sound sound))
-  (sdl-mixer:play-sample (sample-thrust sound) :channel 1 :loop t))
+  (sdl-mixer:play-sample (fifth (sample sound)) :channel 1 :loop t))
 
 (defmethod play-thrust-stop ((sound sound))
   (sdl-mixer:halt-sample :channel 1))
 
-(defmethod play-thumplo ((sound sound))
-  (sdl-mixer:play-sample (sample-thumplo sound))
-)
+(defmethod play-thumplo ((sound sound)) 
+  (sdl-mixer:play-sample (sixth (sample sound)) :channel 2 ))
+
 (defmethod play-thumphi ((sound sound))
-  (sdl-mixer:play-sample (sample-thumphi sound))
-)
+  (sdl-mixer:play-sample (seventh (sample sound)) :channel 3))
+
+(defmethod play-ufo1 ((sound sound))
+  (sdl-mixer:play-sample (eighth (sample sound)) :channel 4 :loop t))
+(defmethod play-ufo1-stop ((sound sound))
+  (sdl-mixer:halt-sample :channel 4))
+
+(defmethod play-ufo2 ((sound sound))
+  (sdl-mixer:play-sample (ninth (sample sound)) :channel 4 :loop t))
+(defmethod play-ufo2-stop ((sound sound))
+  (sdl-mixer:halt-sample :channel 4))
+
 
 (defun xy-off-sum (a b)
   (mapcar #'+ a b))
@@ -470,18 +481,21 @@
 (defmethod add-to :after ((world world) (ship ship))
   (setf (ship world) ship))
 
+(defmethod add-to :after ((world world) (powerup powerup))
+  (play-ufo1 *sound* ))
 ;; Removing from world
 (defmethod remove-from ((world world) (mob mob))
   (setf (mobs world) (remove mob (mobs world))))
 
-
 (defmethod remove-from :after ((world world) (rock rock))
   (decf (num-of-rocks world)))
-
 
 (defmethod remove-from :after ((world world) (ship ship))
   (setf (ship world) nil))
 
+(defmethod remove-from :after ((world world) (powerup powerup))
+  (play-ufo1-stop *sound*
+))
 
 
 
@@ -502,7 +516,7 @@
     (setf best-level (max best-level level))
     (setf mobs nil)
     (setf timers (make-hash-table))
-    (setf (num-of-rocks world) 0)	;ss 
+    (setf (num-of-rocks world) 0)	;
     (dotimes (i level)
       (add-to world (make-instance 'rock)))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
@@ -942,7 +956,7 @@
 		(play-thumphi *sound*))
 	    ;(setf (target (- period (- sdl-ticks target))))
 	    (setf target (+ sdl-ticks period))
-	    (if (> period 400) (decf period 10))))))) 
+	    (if (> period 400) (decf period 40))))))) 
 
 (defmethod reset-ambient ((ambient ambient))
   (setf (period ambient) 1500)
@@ -968,11 +982,11 @@
 	    (window *screen-width* *screen-height*
 		    :title-caption "asteroids"
 		    :icon-caption "asteroids"
-		    ;:fps (make-instance 'fps-timestep :world *world*)
+		    :fps (make-instance 'fps-timestep :world *world*)
 		    ))
       (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
 					;(format t "initialized...")
-      (setf (frame-rate) 60)
+      ;(setf (frame-rate) 60)
 					;(clear-display *black*)
 
       
