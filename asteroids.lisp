@@ -51,12 +51,14 @@
    (sample-explode3 :initform nil :accessor sample-explode3)
    (sample-fire :initform nil :accessor sample-fire)
    (sample-thrust :initform nil :accessor sample-thrust)
+   (sample-thumplo :initform nil :accessor sample-thumplo)
+   (sample-thumphi :initform nil :accessor sample-thumphi)
 )
 
  )
 
 (defmethod initialize ((sound sound))
-  (sdl-mixer:init-mixer :mp3)
+  (sdl-mixer:OPEN-AUDIO)
   (setf (opened sound) (sdl-mixer:open-audio :chunksize 1024 :enable-callbacks nil))
   (format t "mixer opened...")
   (setf (sample-explode1 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode1.wav"))
@@ -64,9 +66,17 @@
   (setf (sample-explode3 sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/explode3.wav"))
   (setf (sample-fire sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/fire.wav"))
   (setf (sample-thrust sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thrust.wav"))
+  (setf (sample-thumplo sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thumplo.wav"))
+  (setf (sample-thumphi sound) (sdl-mixer:load-sample "/home/stack/src/lisp/asteroids/sounds/thumphi.wav"))
 
   (sdl-mixer:allocate-channels 16)
   (sdl-mixer:play-sample (sample-explode1 sound))
+)
+(defmethod shut-down ((sound sound))
+  (sdl-mixer:Halt-Music)
+  ;(sdl-mixer:free music)
+  (sdl-mixer:close-audio)
+
 )
 (defmethod play-explode1 ((sound sound))
   (sdl-mixer:play-sample (sample-explode1 sound))
@@ -82,6 +92,12 @@
 )
 (defmethod play-thrust ((sound sound))
   (sdl-mixer:play-sample (sample-thrust sound))
+)
+(defmethod play-thumplo ((sound sound))
+  (sdl-mixer:play-sample (sample-thumplo sound))
+)
+(defmethod play-thumphi ((sound sound))
+  (sdl-mixer:play-sample (sample-thumphi sound))
 )
 
 (defun xy-off-sum (a b)
@@ -422,7 +438,8 @@
    (best-level :initform 0 :accessor best-level)
    (high-score :initform 0 :accessor high-score)
    (lives :initform 1  :accessor lives)
-   (paused :initform nil :accessor paused)))
+   (paused :initform nil :accessor paused)
+   (ambient :initform (make-instance 'ambient :period 1.0) :accessor ambient)))
 
 (defmethod reset ((world world))
   (setf (mobs world) nil)
@@ -433,7 +450,7 @@
   (setf (lives world) 1)
   (setf *ticks* (sdl-get-ticks))
   (setf (num-of-rocks world) 0)
-
+  ()
 
 )
 ;; Adding to world: cons to mob list and track ship and rock-count
@@ -591,6 +608,7 @@
 
 
 (defmethod update-world ((world world) time-delta)
+  (update-ambient (ambient world) time-delta)
   (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer time-delta))
@@ -604,7 +622,8 @@
            :seconds 3
            :do (lambda ()
                  (incf (lives world))
-                 (start-next-level world))))
+                 (start-next-level world)
+		 (reset-ambient (ambient world)))))
   ;; restart level 3 seconds after death - game over if no more lives
   (unless (ship world)
     (after world
@@ -740,6 +759,9 @@
 ;; ship-rock collision
 (defmethod collide :before ((ship ship) (rock rock) (world world))
   (unless (powerup-active-p ship 'shield)
+    (play-explode1 *sound*)
+    (play-explode2 *sound*)
+    (play-explode3 *sound*)
     (add-to world (make-instance 'x-ship 
 				 :pos (pos ship)
 				 :radius (radius ship)
@@ -853,8 +875,29 @@
           (sdl-mixer:play-music *music*)
           (setf *music-status* (format nil "Music Playing..." ))))))
 
+(defclass ambient ()
+  ((remaining :initform 1.0 :accessor remaining)
+   (phasex   :initform 1   :accessor phasex)
+   (period  :initform 1.5 :accessor period :initarg :period)))
 
+(defmethod initialize-instance :after ((ambient ambient) &key)
+  (setf (remaining ambient) (period ambient)))
 
+(defmethod update-ambient ((ambient ambient) ticks )
+  (with-slots ((remaining remaining) (phasex phasex) (period period)) ambient
+    (if (> period 0.3) (decf period 0.001))
+    (if (< (decf remaining ticks) 0)
+	(progn 
+	  (incf remaining period)
+	  (if (evenp (incf phasex))
+	      (play-thumplo *sound*)
+	      (play-thumphi *sound*)))))) 
+
+(defmethod reset-ambient ((ambient ambient))
+  (setf (period ambient) 1.5)
+  (setf (remaining ambient) 1.5)
+  (setf (phasex ambient) 1)
+)
 (defun sample-finished-action ()
   (sdl-mixer:register-sample-finished
    (lambda (channel)
@@ -866,14 +909,14 @@
    (lambda ())))
 
 (defun main ()
-  (with-init ()
+  (with-init (sdl-init-video sdl-init-audio)
     (setf *window*
 	  (window *screen-width* *screen-height*
 		  :title-caption "asteroids"
 		  :icon-caption "asteroids"))
     (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
  (format t "initialized...")
-    (setf (frame-rate) 60)
+    (setf (frame-rate) 120)
     (clear-display *black*)
 
 					;do not reopen the mixer...
@@ -891,9 +934,11 @@
     (setf *sound* (make-instance 'sound))
     (initialize *sound*)
 	
-    (let ((world (make-instance 'world)) ) 
+    (let ((world (make-instance 'world))) 
       (with-events ()
-	(:quit-event () t)
+	(:quit-event ()
+		     (shut-down *sound*)
+		     t)
 	(:key-down-event (:key key) (key-processor world key :down t))
 	(:key-up-event (:key key) (key-processor world key :down nil))
 	(:idle () 
