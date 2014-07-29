@@ -41,7 +41,7 @@
 ;(defparameter *but-thrust* :sdl-key-j)
 
 (defparameter *sound* nil)
-
+(defvar *world* nil)
 
 (defclass sound ()
   ((opened :initform nil :accessor opened)
@@ -141,6 +141,7 @@
   (destructuring-bind (x y) (xy-off-subtract b a)
     (rad->deg (atan x y))))
 
+;;DESTRUCTIVE! *ticks* is modified!
 (defun get-ticks ()
   (let ((ticks (shiftf *ticks* (sdl-get-ticks))))
     (* (- *ticks* ticks) 0.001)))
@@ -439,7 +440,7 @@
    (high-score :initform 0 :accessor high-score)
    (lives :initform 1  :accessor lives)
    (paused :initform nil :accessor paused)
-   (ambient :initform (make-instance 'ambient :period 1.0) :accessor ambient)))
+   (ambient :initform (make-instance 'ambient :period 1000) :accessor ambient)))
 
 (defmethod reset ((world world))
   (setf (mobs world) nil)
@@ -448,9 +449,10 @@
   (setf (level world) 0)
   (setf (score world) 0)
   (setf (lives world) 1)
-  (setf *ticks* (sdl-get-ticks))
   (setf (num-of-rocks world) 0)
-  ()
+
+  (setf *ticks* (sdl-get-ticks))
+
 
 )
 ;; Adding to world: cons to mob list and track ship and rock-count
@@ -608,7 +610,7 @@
 
 
 (defmethod update-world ((world world) time-delta)
-  (update-ambient (ambient world) time-delta)
+  (update-ambient (ambient world))
   (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer time-delta))
@@ -921,28 +923,27 @@
           (setf *music-status* (format nil "Music Playing..." ))))))
 
 (defclass ambient ()
-  ((remaining :initform 1.0 :accessor remaining)
+  ((target  :initform 1000 :accessor target)
    (phasex   :initform 1   :accessor phasex)
-   (period  :initform 1.5 :accessor period :initarg :period)))
+   (period  :initform 1500 :accessor period :initarg :period)))
 
-(defmethod initialize-instance :after ((ambient ambient) &key)
-  (setf (remaining ambient) (period ambient)))
+;(defmethod initialize-instance :after ((ambient ambient) &key)  (setf (nt) (period ambient)))
 
-(defmethod update-ambient ((ambient ambient) ticks )
-  (with-slots ((remaining remaining) (phasex phasex) (period period)) ambient
-    (if (> period 0.3) (decf period 0.001))
-    (if (< (decf remaining ticks) 0)
-	(progn 
-;(format t " error ~a" remaining)
-;(terpri)
-	  (incf remaining period)
-	  (if (evenp (incf phasex))
-	      (play-thumplo *sound*)
-	      (play-thumphi *sound*)))))) 
+(defmethod update-ambient ((ambient ambient))
+  (with-slots ((target target) (phasex phasex) (period period)) ambient
+    (let ((sdl-ticks (sdl-get-ticks) ))
+      (if (< target sdl-ticks)
+	  (progn 
+	    (if (evenp (incf phasex))
+		(play-thumplo *sound*)
+		(play-thumphi *sound*))
+	    ;(setf (target (- period (- sdl-ticks target))))
+	    (setf target (+ sdl-ticks period))
+	    (if (> period 400) (decf period 10))))))) 
 
 (defmethod reset-ambient ((ambient ambient))
-  (setf (period ambient) 1.5)
-  (setf (remaining ambient) 1.5)
+  (setf (period ambient) 1500)
+  (setf (target ambient) 0)
   (setf (phasex ambient) 1)
 )
 (defun sample-finished-action ()
@@ -956,22 +957,25 @@
    (lambda ())))
 
 (defun main ()
-  (with-init (sdl-init-video sdl-init-audio)
-    (setf *window*
-	  (window *screen-width* *screen-height*
-		  :title-caption "asteroids"
-		  :icon-caption "asteroids"
-		  ))
-    (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
-    ;(format t "initialized...")
-    (setf (frame-rate) 60)
-    ;(clear-display *black*)
+  (setf *world* (make-instance 'world))
+  (let ((world *world*))
 
-    
-    (setf *sound* (make-instance 'sound))
-    (initialize *sound*)
-    
-    (let ((world (make-instance 'world))) 
+    (with-init (sdl-init-video sdl-init-audio)
+      (setf *window*
+	    (window *screen-width* *screen-height*
+		    :title-caption "asteroids"
+		    :icon-caption "asteroids"
+		    :fps (make-instance 'fps-timestep :world *world*)
+		    ))
+      (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
+					;(format t "initialized...")
+      ;(setf (frame-rate) 60)
+					;(clear-display *black*)
+
+      
+      (setf *sound* (make-instance 'sound))
+      (initialize *sound*)
+      
       (with-events ()
 	(:quit-event ()
 		     (shut-down *sound*)
@@ -979,7 +983,8 @@
 	(:key-down-event (:key key) (key-processor world key :down t))
 	(:key-up-event (:key key) (key-processor world key :down nil))
 	(:idle () 
+;;(print (get-ticks))
 	       (if  (> (level world) 0)
-		    (update-world world (get-ticks)))
+		    (update-world world (get-ticks))) 
 	       (render-world world)
 	       (update-display))))))
