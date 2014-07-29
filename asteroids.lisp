@@ -897,8 +897,8 @@
   (if down
       (case key
 	(:sdl-key-q (reset world))
-	(:sdl-key-a (setf *lr-map* (1+ *lr-map*)))		
-	(:sdl-key-f (setf *lr-map* (+ *lr-map* 2)))
+	(:sdl-key-a (setf *lr-map* (boole boole-ior *lr-map* 1)))		
+	(:sdl-key-f (setf *lr-map* (boole boole-ior *lr-map* 2)))
 	(:sdl-key-j (setf *is-thrusting* t) (play-thrust *sound*) )
 	(:sdl-key-space (if (ship world)
 			    (shoot (ship world) world)))
@@ -907,8 +907,8 @@
       (case key
 	(:sdl-key-escape (repl)		;(push-quit-event)
 	 )
-	(:sdl-key-a (setf *lr-map* (1- *lr-map*)))
-	(:sdl-key-f (setf *lr-map* (- *lr-map* 2)))
+	(:sdl-key-a (setf *lr-map* (boole boole-and *lr-map* 2)))
+	(:sdl-key-f (setf *lr-map* (boole boole-and *lr-map* 1)))
 	(:sdl-key-j (setf *is-thrusting* nil) (play-thrust-stop *sound*)))))
 
 (defun key-processor (world key &key down)
