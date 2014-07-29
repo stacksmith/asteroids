@@ -933,8 +933,8 @@
     (if (> period 0.3) (decf period 0.001))
     (if (< (decf remaining ticks) 0)
 	(progn 
-(format t " error ~a" remaining)
-(terpri)
+;(format t " error ~a" remaining)
+;(terpri)
 	  (incf remaining period)
 	  (if (evenp (incf phasex))
 	      (play-thumplo *sound*)
