@@ -830,6 +830,49 @@
 
 
 
+;; Written by pjb with minor modification for finishing the output
+;; from me.
+(defmacro handling-errors (&body body)
+  `(handler-case (progn ,@body)
+     (simple-condition
+         (err)
+       (format *error-output* "~&~A: ~%" (class-name (class-of err)))
+       (apply (function format) *error-output*
+              (simple-condition-format-control   err)
+              (simple-condition-format-arguments err))
+       (format *error-output* "~&")
+       (finish-output))
+     (condition
+         (err)
+       (format *error-output* "~&~A: ~%  ~S~%"
+               (class-name (class-of err)) err)
+       (finish-output))))
+
+;; Written by pjb with minor modification for finishing the output and
+;; starting from zero in the history.
+(defun repl ()
+  (do ((+eof+ (gensym))
+       (hist 0 (1+ hist)))
+      (nil)
+    (format t "~%~A[~D]> " (package-name *package*) hist)
+    (finish-output)
+    (handling-errors
+     (setf +++ ++
+           ++ +
+           + -
+           - (read *standard-input* nil +eof+))
+     (when (or (eq - +eof+)
+               (member - '((quit) (exit) (continue)) :test #'equal))
+       (return-from repl))
+     (setf /// //
+           // /
+           / (multiple-value-list (eval -)))
+     (setf *** **
+           ** *
+           * (first /))
+     (format t "~& --> ~{~S~^ ;~%     ~}~%" /)
+     (finish-output))))
+
 
 
 (defun key-processor-attract (world key &key down)
@@ -847,9 +890,11 @@
 	(:sdl-key-j (setf *is-thrusting* t) (play-thrust *sound*) )
 	(:sdl-key-space (if (ship world)
 			    (shoot (ship world) world)))
+      
 	)
       (case key
-	(:sdl-key-escape (push-quit-event))
+	(:sdl-key-escape (repl)		;(push-quit-event)
+	 )
 	(:sdl-key-a (setf *lr-map* (1- *lr-map*)))
 	(:sdl-key-f (setf *lr-map* (- *lr-map* 2)))
 	(:sdl-key-j (setf *is-thrusting* nil)))))
@@ -888,6 +933,8 @@
     (if (> period 0.3) (decf period 0.001))
     (if (< (decf remaining ticks) 0)
 	(progn 
+(format t " error ~a" remaining)
+(terpri)
 	  (incf remaining period)
 	  (if (evenp (incf phasex))
 	      (play-thumplo *sound*)
@@ -913,27 +960,17 @@
     (setf *window*
 	  (window *screen-width* *screen-height*
 		  :title-caption "asteroids"
-		  :icon-caption "asteroids"))
+		  :icon-caption "asteroids"
+		  ))
     (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
- (format t "initialized...")
-    (setf (frame-rate) 120)
-    (clear-display *black*)
-
-					;do not reopen the mixer...
+    ;(format t "initialized...")
+    (setf (frame-rate) 60)
+    ;(clear-display *black*)
 
     
-    
-    
-      ;;(music-finished-action)
-;;    (sample-finished-action)
-    
-    ;;(play-music)
-    
-
-	       
     (setf *sound* (make-instance 'sound))
     (initialize *sound*)
-	
+    
     (let ((world (make-instance 'world))) 
       (with-events ()
 	(:quit-event ()
