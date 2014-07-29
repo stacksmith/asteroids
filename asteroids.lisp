@@ -627,7 +627,8 @@
 
 
 (defmethod update-world ((world world) time-delta)
-  (update-ambient (ambient world))
+  (update-ambient (ambient *world*) )
+
   (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer time-delta))
@@ -946,7 +947,7 @@
 
 ;(defmethod initialize-instance :after ((ambient ambient) &key)  (setf (nt) (period ambient)))
 
-(defmethod update-ambient ((ambient ambient))
+(defmethod update-ambient ((ambient ambient) )
   (with-slots ((target target) (phasex phasex) (period period)) ambient
     (let ((sdl-ticks (sdl-get-ticks) ))
       (if (< target sdl-ticks)
@@ -955,7 +956,7 @@
 		(play-thumplo *sound*)
 		(play-thumphi *sound*))
 	    ;(setf (target (- period (- sdl-ticks target))))
-	    (setf target (+ sdl-ticks period))
+	    (setf target  (+ (sdl-get-ticks) period))
 	    (if (> period 400) (decf period 40))))))) 
 
 (defmethod reset-ambient ((ambient ambient))
@@ -973,6 +974,11 @@
   (sdl-mixer:register-music-finished
    (lambda ())))
 
+
+(defun physics (ticks dt)
+  (declare (ignore dt))
+)
+
 (defun main ()
   (setf *world* (make-instance 'world))
   (let ((world *world*))
@@ -982,11 +988,12 @@
 	    (window *screen-width* *screen-height*
 		    :title-caption "asteroids"
 		    :icon-caption "asteroids"
-		    :fps (make-instance 'fps-timestep :world *world*)
+;		    :fps (make-instance 'fps-unlocked :ps-fn 'physics)
+;		    :fps (make-instance 'fps-timestep :world *world*)
 		    ))
       (sdl-gfx:initialise-default-font sdl-gfx:*font-9x18*)
 					;(format t "initialized...")
-      ;(setf (frame-rate) 60)
+      (setf (frame-rate) 120)
 					;(clear-display *black*)
 
       
