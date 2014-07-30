@@ -146,6 +146,7 @@
   (point :x (+ (* radius (sin (deg->rad angle))) (x p))
          :y (+ (* radius (cos (deg->rad angle))) (y p))))
 
+#+nil
 (defun calc-angle (a b)
   (destructuring-bind (x y) (xy-off-subtract b a)
     (rad->deg (atan x y))))
@@ -903,7 +904,7 @@
 	(:sdl-key-j (setf *is-thrusting* t) (play-thrust *sound*) )
 	(:sdl-key-space (if (ship world)
 			    (shoot (ship world) world)))
-      
+     
 	)
       (case key
 	(:sdl-key-escape (repl)		;(push-quit-event)
