@@ -126,10 +126,12 @@
 ;;; distance between point a and point b
 ;;; parameters must be lists of 2 numbers (x y)
 (defun my-distance (a b)
-  (sqrt (apply #'+
-               (mapcar (lambda (x)
-                         (expt x 2))
-                       (xy-off-subtract a b)))))
+  (sqrt (+ (expt (- (first a) (first b)) 2)
+	   (expt (- (second a) (second b)) 2)))
+ #+nil (sqrt (apply #'+
+	       (mapcar (lambda (x)
+			 (expt x 2))
+		       (xy-off-subtract a b)))))
 
 (defun square-from-midpoint (point radius)
   (rectangle-from-midpoint-* (x point)
