@@ -4,7 +4,7 @@
 ;; Rotate a f   Thrust j  Fire <spacebar>
 ;;
 ;; TODO:
-;; separate gameloop from attract mode loop
+;; -convert timers to ms
 ;;
 (ql:quickload "lispbuilder-sdl")
 (ql:quickload "lispbuilder-sdl-gfx")
@@ -153,12 +153,29 @@
 ;;-------------------------------------------------------------------
 ;; O B J E C T S
 ;;; 
+
+;;-------------------------------------------------------------------
+;; T I M E R
+;;
+;; A timer keeps a target tick that we are waiting for.
+(defclass timer ()
+  (( target :initarg :seconds :initform 0 :accessor target)))
+
+(defmethod initialize-instance :after ((timer timer) &key)
+  (setf (target timer) (+ (system-ticks) (* 1000 (target timer)))))
+
+(defmethod done ((timer timer))
+  (<= (target timer) (system-ticks)))
+
+(defmethod set-seconds ((timer timer) seconds)
+  (setf (target timer) (+  (system-ticks) (* 1000 seconds))))
+;;-------------------------------------------------------------------
+;; M O B 
+;;
 (defclass mob ()
   ((pos :initform '(0.5 0.5) :initarg :pos  :accessor pos)
    (radius :initform 0 :initarg :radius :accessor radius :writer set-radius)
    (velocity :initform '(0 0) :initarg :velocity  :accessor velocity)))
-
-
 
 (defmethod map-coords ((mob mob))
   "create a point from mob's fractional coordinates"
@@ -210,7 +227,7 @@
                   collect (radial-point-from (map-coords rock) r
                                              (+ (direction rock)
                                                 (* i (/ 360 *rock-sides*) +degrees+))))
-                :color *white* ))
+                :color *green* ))
 ;;-------------------------------------------------------------------
 ;; M I S S I L E
 ;; 
@@ -225,7 +242,7 @@
   (let ((coords (map-coords missile))
         (radius (map-radius missile)))
     (draw-circle coords radius
-                 :color *red*)
+                 :color *white*)
     (when (super-p missile)
           (draw-circle coords (+ (random 3))
                        :color *magenta*))))
@@ -243,12 +260,12 @@
                  (+ radius (random 3))
                  :color *explosion-color* :aa t)))
 ;;-------------------------------------------------------------------
+;; P O W E R U P
 (defclass powerup (mob)
   ( (age :initform 0 :accessor age)))
 
 (defmethod initialize-instance :after ((powerup powerup) &key)
   (set-radius 0.02 powerup))
-
 ;;-------------------------------------------------------------------
 (defclass missile-powerup (powerup) ())
 
@@ -273,8 +290,6 @@
 								    0.7 0.2)))
 					       (* i 0.525)))
                   :color *white* :aa t)))
-
-
 ;;-------------------------------------------------------------------
 (defclass shield-powerup (powerup) ())
 
@@ -290,6 +305,12 @@
                     ,(radial-point-from coords (round (* radius 0.8)) 2.3625))
                   :color *white*  :aa t)))
 
+(defmethod add-shield ((ship ship) &key (seconds 0))
+  (if (powerup-active-p ship 'shield)
+    (set-seconds (gethash 'shield (timers ship)) seconds)
+    (setf (gethash 'shield (timers ship))
+          (make-instance 'timer :seconds seconds)))
+)
 ;;-------------------------------------------------------------------
 
 ;; Draw a list of line segments represented as a linear list of pairs of points
@@ -363,12 +384,6 @@
   
 )
 
-(defmethod add-shield ((ship ship) &key (seconds 0))
-  (if (powerup-active-p ship 'shield)
-    (add-seconds (gethash 'shield (timers ship)) seconds)
-    (setf (gethash 'shield (timers ship))
-          (make-instance 'timer :seconds seconds)))
-)
 
 (defmethod thrust ((ship ship))
   "Set ship's acceleration using *thrust-factor* and ship's direction"
@@ -378,6 +393,7 @@
   "Set ship's acceleration to null"
   (setf (acceleration-of ship) '(0 0)))
 
+;; questionable - powerups should be independent objects, not tangled with the ship...
 (defmethod powerup-active-p ((ship ship) powerup)
   (let ((timer (gethash powerup (timers ship) nil)))
     (and timer
@@ -390,7 +406,7 @@
 
 (defmethod add-super-missiles ((ship ship) &key (seconds 0))
   (if (powerup-active-p ship 'super-missiles)
-    (add-seconds (gethash 'super-missiles (timers ship)) seconds)
+    (set-seconds (gethash 'super-missiles (timers ship)) seconds)
     (setf (gethash 'super-missiles (timers ship))
           (make-instance 'timer :seconds seconds))))
 
@@ -410,25 +426,7 @@
 			:g 0
 			:b 0))
   (setf (direction x-ship ) ;spinning out of control...
-	(+ (direction x-ship) 10)))
-
-
-
-;;-------------------------------------------------------------------
-(defclass timer ()
-  (( target :initarg :seconds :initform 0 :accessor target)))
-
-(defmethod initialize-instance :after ((timer timer) &key)
-  (setf (target timer) (+ (system-ticks) (* 1000 (target timer)))))
-
-(defmethod done ((timer timer))
-  (<= (target timer) (system-ticks)))
-
-(defmethod add-seconds ((timer timer) seconds)
-  (setf (target timer) (+  (system-ticks) (* 1000 seconds))))
-
-
-
+	(+ (direction x-ship) 0.2)))
 ;;-------------------------------------------------------------------
 ;; W O R L D
 ;;
@@ -827,7 +825,7 @@ dt) world))
 
 (defmethod add-freeze ((world world) &key (seconds 0))
   (if (frozen-p world)
-    (add-seconds (gethash 'freeze (timers world)) seconds)
+    (set-seconds (gethash 'freeze (timers world)) seconds)
     (setf (gethash 'freeze (timers world))
           (make-instance 'timer :seconds seconds))))
 
