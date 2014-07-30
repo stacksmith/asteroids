@@ -179,12 +179,14 @@
 
 (defmethod map-coords ((mob mob))
   "create a point from mob's fractional coordinates"
-  (destructuring-bind (x y) (pos mob)
+  (point :x (* *screen-width* (first (pos mob)))
+	 :y (* *screen-width* (second (pos mob))))
+#+nil  (destructuring-bind (x y) (pos mob)
     (point :x  (* x *screen-width*)
            :y  (* y *screen-height*))))
 
 (defmethod map-radius ((mob mob))
-  (round (* (radius mob) *screen-width*)))
+  (round (* (radius mob) *screen-width*))) ;radius is required to be an int
 
 
 (defmethod intersects-p ((mob mob) (other mob))
@@ -239,13 +241,11 @@
   (set-radius 0.001 missile))
 
 (defmethod render ((missile missile))
-  (let ((coords (map-coords missile))
-        (radius (map-radius missile)))
-    (draw-circle coords radius
-                 :color *white*)
+  (let ((coords (map-coords missile)))
+    (draw-circle coords 1 :color *white*)
     (when (super-p missile)
-          (draw-circle coords (+ (random 3))
-                       :color *magenta*))))
+      (draw-circle coords (+ (random 3))
+		   :color *magenta*))))
 ;;-------------------------------------------------------------------
 ;;E X P L O S I O N
 ;;
