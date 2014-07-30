@@ -367,7 +367,8 @@
   (if (powerup-active-p ship 'shield)
     (add-seconds (gethash 'shield (timers ship)) seconds)
     (setf (gethash 'shield (timers ship))
-          (make-instance 'timer :seconds seconds))))
+          (make-instance 'timer :seconds seconds)))
+)
 
 (defmethod thrust ((ship ship))
   "Set ship's acceleration using *thrust-factor* and ship's direction"
@@ -415,17 +416,18 @@
 
 ;;-------------------------------------------------------------------
 (defclass timer ()
-  ((remaining :initarg :seconds :initform 0 :accessor remaining)))
+  (( target :initarg :seconds :initform 0 :accessor target)))
+
+(defmethod initialize-instance :after ((timer timer) &key)
+  (setf (target timer) (+ (system-ticks) (* 1000 (target timer)))))
 
 (defmethod done ((timer timer))
-  (<= (ceiling (remaining timer)) 0))
+  (<= (target timer) (system-ticks)))
 
 (defmethod add-seconds ((timer timer) seconds)
-  (incf (remaining timer) seconds))
+  (setf (target timer) (+  (system-ticks) (* 1000 seconds))))
 
-(defmethod update-timer ((timer timer) time-delta)
-  (unless (done timer)
-    (decf (remaining timer) time-delta)))
+
 
 ;;-------------------------------------------------------------------
 ;; W O R L D
@@ -577,7 +579,8 @@
 				  (acceleration-of ship))
 		      *friction*))
 
-  (maphash (lambda (name timer)
+ #+nil
+ (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer time-delta))
            (timers ship))
@@ -612,7 +615,8 @@
 (defmethod update-world ((world world))
   (update-ambient (ambient *world*) )
 
-  (maphash (lambda (name timer)
+
+#+nil  (maphash (lambda (name timer)
              (declare (ignore name))
              (update-timer timer (sdl:dt)))
            (timers world))
