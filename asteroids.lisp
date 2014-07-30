@@ -19,6 +19,7 @@
 
 (in-package :asteroids)
 
+(defconstant +degrees+ 0.0175)
 (defparameter *screen-width* 800)
 (defparameter *screen-height* 600)
  
@@ -118,10 +119,10 @@
 (defun xy-off-subtract (a b)
   (mapcar #'- a b))
 
-(defun xy-off-create (angle-deg magnitude)
+(defun xy-off-create (angle-rad magnitude)
   "Create a 'xy-off'"
-  (list (* magnitude (sin (deg->rad angle-deg)))
-	(* magnitude (cos (deg->rad angle-deg)))))
+  (list (* magnitude (sin angle-rad))
+	(* magnitude (cos angle-rad))))
 ;;; distance between point a and point b
 ;;; parameters must be lists of 2 numbers (x y)
 (defun my-distance (a b)
@@ -136,15 +137,12 @@
                              (* radius 2)
                              (* radius 2)))
 
-(defun deg->rad (degs)
-  (* degs (/ pi 180)))
+;(defun deg->rad (degs)  (* degs (/ pi 180)))
 
-(defun rad->deg (rads)
-  (* rads (/ 180 pi)))
 
 (defun radial-point-from (p radius angle)
-  (point :x (+ (* radius (sin (deg->rad angle))) (x p))
-         :y (+ (* radius (cos (deg->rad angle))) (y p))))
+  (point :x (+ (* radius (sin angle)) (x p))
+         :y (+ (* radius (cos angle)) (y p))))
 
 #+nil
 (defun calc-angle (a b)
@@ -193,7 +191,7 @@
 (defclass rock (mob)
   ((size :initarg :size :initform 'big :reader size)
    (radii :initform nil :accessor radii)
-   (rotation :initform (* (- (random 1.0) 0.5) 3) :accessor rotation)
+   (rotation :initform (* (- (random 1.0) 0.5) 3 +degrees+) :accessor rotation)
    (direction :initform 0 :accessor direction)
    (pos :initform `(,(random 1.0) ,(random 1.0)))))
 
@@ -218,7 +216,7 @@
                       for r in (radii rock)
                   collect (radial-point-from (map-coords rock) r
                                              (+ (direction rock)
-                                                (* i (/ 360 *rock-sides*)))))
+                                                (* i (/ 360 *rock-sides*) +degrees+))))
                 :color *white* ))
 ;;-------------------------------------------------------------------
 ;; M I S S I L E
@@ -280,7 +278,7 @@
                     collect (radial-point-from coords
                                                (round (* radius (if (= (mod i 2) 0)
 								    0.7 0.2)))
-					       (* i 30)))
+					       (* i 0.525)))
                   :color *white* :aa t)))
 
 
@@ -292,40 +290,40 @@
         (radius (map-radius powerup)))
     (draw-circle coords radius
                  :color *green*)
-    (draw-polygon `(,(radial-point-from coords (round (* radius 0.8)) 40)
+    (draw-polygon `(,(radial-point-from coords (round (* radius 0.8)) 0.7)
                     ,(radial-point-from coords (round (* radius 0.8)) 0)
-                    ,(radial-point-from coords (round (* radius 0.8)) -40)
-                    ,(radial-point-from coords (round (* radius 0.8)) -135)
-                    ,(radial-point-from coords (round (* radius 0.8)) 135))
+                    ,(radial-point-from coords (round (* radius 0.8)) -0.7)
+                    ,(radial-point-from coords (round (* radius 0.8)) -2.3625)
+                    ,(radial-point-from coords (round (* radius 0.8)) 2.3625))
                   :color *white*  :aa t)))
 
 ;;-------------------------------------------------------------------
 
 ;; Draw a list of line segments represented as a linear list of pairs of points
-(defun draw-list (list &key (color *green*))
+#+nil(defun draw-list (list &key (color *green*))
   (loop for i on list by #'cddr do
        ;(print (car i) )
       (draw-line (car i) (cadr i) :color color :aa t)
        ))
 
-#+nil
-(defmethod polygon1 ((ship ship) coords radius direction)
+
+(defun polygon1 ( coords radius direction)
   "return a list of vertices (points)"
   (let ((nose (radial-point-from coords radius direction))
-	(left (radial-point-from coords radius (- direction 140)))
-	(right (radial-point-from coords radius (+ direction 140)))
-	(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
-	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
+	(left (radial-point-from coords radius (- direction 2.45)))
+	(right (radial-point-from coords radius (+ direction 2.45)))
+	(tail-right (radial-point-from coords (* -.5 radius) (- direction 0.7) ))
+	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 0.7) ))
 	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	)
     (list nose left tail-left tail-right right)))
-
+#+nil
 (defun polygon2 ( coords radius direction)
   (let ((nose (radial-point-from coords radius direction))
-	(left (radial-point-from coords radius (- direction 140)))
-	(right (radial-point-from coords radius (+ direction 140)))
-	(tail-right (radial-point-from coords (* -.5 radius) (- direction 40) ))
-	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 40) ))
+	(left (radial-point-from coords radius (- direction 2.45)))
+	(right (radial-point-from coords radius (+ direction 2.45)))
+	(tail-right (radial-point-from coords (* -.5 radius) (- direction 0.7) ))
+	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 0.7) ))
 	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	)
     (list nose left  left tail-left  tail-left tail-right  tail-right right  right nose )))
@@ -348,13 +346,13 @@
 	 (radius (map-radius ship))
 	 (direction (direction ship)))
     
-    ;(draw-polygon (polygon1 ship coords radius direction) :color *green* :aa t)
-    (draw-list (polygon2 coords radius direction))
+    (draw-polygon (polygon1 coords radius direction) :color *green* :aa t)
+    ;(draw-list (polygon2 coords radius direction))
     (if *is-thrusting* ;draw thrusting jets
-	(let ((tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180))))
+	(let ((tail (radial-point-from coords (round (* radius 0.5)) (+ direction pi))))
 	  (draw-line tail
 		     (radial-point-from tail (round (* radius (random 1.0))) 
-					(+ direction 180 (- (random 20) 10)))
+					(+ direction pi (- (random 0.5) 0.25)))
 		     :color *red* :aa nil))
        	)
     
@@ -576,7 +574,7 @@
     (t (setf (rotation (ship world)) 0)))
 
   (setf (direction ship )
-	(+ (direction ship) (* 200 time-delta (rotation ship))))
+	(+ (direction ship) (* 3.5  time-delta (rotation ship))))
   
   (if *is-thrusting*
       (thrust ship)
