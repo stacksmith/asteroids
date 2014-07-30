@@ -313,16 +313,10 @@
 )
 ;;-------------------------------------------------------------------
 
-;; Draw a list of line segments represented as a linear list of pairs of points
-#+nil(defun draw-list (list &key (color *green*))
-  (loop for i on list by #'cddr do
-       ;(print (car i) )
-      (draw-line (car i) (cadr i) :color color :aa t)
-       ))
 
 
 (defun polygon1 ( coords radius direction)
-  "return a list of vertices (points)"
+  "return a list of vertices (points) suitable for draw-polygon"
   (let ((nose (radial-point-from coords radius direction))
 	(left (radial-point-from coords radius (- direction 2.45)))
 	(right (radial-point-from coords radius (+ direction 2.45)))
@@ -341,6 +335,12 @@
 	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
 	)
     (list nose left  left tail-left  tail-left tail-right  tail-right right  right nose )))
+;; Draw a list of line segments represented as a linear list of pairs of points
+#+nil(defun draw-list (list &key (color *green*))
+  (loop for i on list by #'cddr do
+       ;(print (car i) )
+      (draw-line (car i) (cadr i) :color color :aa t)
+       ))
 
 ;;-------------------------------------------------------------------
 ;; S H I P
@@ -426,7 +426,7 @@
 			:g 0
 			:b 0))
   (setf (direction x-ship ) ;spinning out of control...
-	(+ (direction x-ship) 0.2)))
+	(+ (direction x-ship) 0.5)))
 ;;-------------------------------------------------------------------
 ;; W O R L D
 ;;
