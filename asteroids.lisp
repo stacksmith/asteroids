@@ -25,11 +25,10 @@
  
 (defparameter *window* nil)
 (defparameter *thrust-factor* 0.01)
-(defparameter *friction* 0.99)
+(defparameter *friction* 0.995)
 (defparameter *missile-velocity* 0.8)
 (defparameter *rock-sides* 12)
  
-(defparameter *ticks* 0)
 (defparameter *powerup-max-age* 9)
 (defparameter *explosion-max-radius* 0.1)
 (defparameter *explosion-color* (sdl:color :r 180 :g 30 :b 30)) 
@@ -151,14 +150,6 @@
   (destructuring-bind (x y) (xy-off-subtract b a)
     (rad->deg (atan x y))))
 
-;;DESTRUCTIVE! *ticks* is modified!
-(defun get-ticks ()
-  (let ((ticks (shiftf *ticks* (sdl-get-ticks))))
-    (* (- *ticks* ticks) 0.001)))
-
-(defun relative-coords (x y)
-"convert pixel coordinates to fractional coordinates"
-    (list (/ x *screen-width*) (/ y *screen-height*)))
 ;;-------------------------------------------------------------------
 ;; O B J E C T S
 ;;; 
@@ -172,8 +163,8 @@
 (defmethod map-coords ((mob mob))
   "create a point from mob's fractional coordinates"
   (destructuring-bind (x y) (pos mob)
-    (point :x (round (* x *screen-width*))
-           :y (round (* y *screen-height*)))))
+    (point :x  (* x *screen-width*)
+           :y  (* y *screen-height*))))
 
 (defmethod map-radius ((mob mob))
   (round (* (radius mob) *screen-width*)))
@@ -410,13 +401,13 @@
    (direction :initarg :direction :accessor direction)))
 
 (defmethod render ((x-ship x-ship))
-  (draw-list (polygon2 (map-coords x-ship) 
+  (draw-polygon (polygon1 (map-coords x-ship) 
 		       (map-radius x-ship) 
 		       (direction x-ship))
-	     :color (color 
-		     :r (round  (* 255 (timeout x-ship))) 
-		     :g 0
-		     :b 0))
+		:color (color 
+			:r (round  (* 255 (timeout x-ship))) 
+			:g 0
+			:b 0))
   (setf (direction x-ship ) ;spinning out of control...
 	(+ (direction x-ship) 10)))
 
@@ -461,7 +452,6 @@
   (setf (lives world) 1)
   (setf (num-of-rocks world) 0)
 
-  (setf *ticks* (sdl-get-ticks))
   (reset *sound*))
 ;; Adding to world: cons to mob list and track ship and rock-count
 ;;
@@ -619,15 +609,17 @@
             (make-instance 'timer :seconds seconds)))))
 
 
-(defmethod update-world ((world world) time-delta)
+(defmethod update-world ((world world))
   (update-ambient (ambient *world*) )
 
   (maphash (lambda (name timer)
              (declare (ignore name))
-             (update-timer timer time-delta))
+             (update-timer timer (sdl:dt)))
            (timers world))
   (dolist (mob (mobs world))
-    (update mob time-delta world))
+
+    (update mob (
+dt) world))
   ;; start next level 3 seconds after clearing
   (when (level-cleared-p world)
     (after world
@@ -638,18 +630,19 @@
                  (start-next-level world)
 		 (reset-ambient (ambient world)))))
   ;; restart level 3 seconds after death - game over if no more lives
+
   (unless (ship world)
     (after world
-           'death
-           :seconds 3
-           :do (lambda ()
-                 (if (< (lives world) 1)
-                   (setf (level world) 0) ; game over
-                   (let ((ship (make-instance 'ship)))
-		  
-                     (add-to world ship)
-                     (add-shield ship :seconds 6)
-		     (reset *sound*)))))))
+	   'death
+	   :seconds 3
+	   :do (lambda ()
+		 (if (< (lives world) 1)
+		     (setf (level world) 0) ; game over
+		     (let ((ship (make-instance 'ship)))
+		       
+		       (add-to world ship)
+		       (add-shield ship :seconds 6)
+		       (reset *sound*)))))))
 
 
 
@@ -1002,6 +995,8 @@
 	(:idle () 
 ;;(print (get-ticks))
 	       (if  (> (level world) 0)
-		    (update-world world (get-ticks))) 
+		    (update-world world) 
+		      ;(format t "~%~5$ ~5$" (float (sdl:dt)) x)
+		      )
 	       (render-world world)
 	       (update-display))))))
