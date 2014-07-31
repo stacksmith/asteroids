@@ -180,10 +180,7 @@
 (defmethod map-coords ((mob mob))
   "create a point from mob's fractional coordinates"
   (point :x (* *screen-width* (first (pos mob)))
-	 :y (* *screen-width* (second (pos mob))))
-#+nil  (destructuring-bind (x y) (pos mob)
-    (point :x  (* x *screen-width*)
-           :y  (* y *screen-height*))))
+	 :y (* *screen-height* (second (pos mob)))))
 
 (defmethod map-radius ((mob mob))
   (round (* (radius mob) *screen-width*))) ;radius is required to be an int
@@ -204,10 +201,10 @@
   ((size :initarg :size :initform 'big :reader size)
    (radii :initform nil :accessor radii)
    (rotation :initform (* (- (random 1.0) 0.5) 3 +degrees+) :accessor rotation)
-   (direction :initform 0 :accessor direction)
-   (pos :initform `(,(random 1.0) ,(random 1.0)))))
+   (direction :initform 0 :accessor direction)))
 
 (defmethod initialize-instance :after ((rock rock) &key)
+  (setf (pos rock) `(,(random 1.0) ,(random 1.0)))
   (let ((radius (cdr (assoc (size rock)
                             '((big . 0.07) (medium . 0.04) (small . 0.01)))))
         (spd (cdr (assoc (size rock)
@@ -235,10 +232,8 @@
 ;; 
 (defclass missile (mob)
   ((super :initform nil :initarg :super :accessor super-p)
-   (timeout :initform 1 :accessor timeout)))
-
-(defmethod initialize-instance :after ((missile missile) &key)
-  (set-radius 0.001 missile))
+   (timeout :initform 1 :accessor timeout)
+   (lifetime :initform (make-instance 'timer :seconds 1) :accessor lifetime)))
 
 (defmethod render ((missile missile))
   (let ((coords (map-coords missile)))
@@ -520,8 +515,10 @@
 			    (xy-off-scale (velocity mob) time-delta)))))
 
 ;; update missile
-(defmethod update :before  ((missile missile) time-delta (world world))
-  (let ((remaining (- (timeout missile) time-delta)))
+(defmethod update :after ((missile missile) time-delta (world world))
+  (if (done (lifetime missile))
+      (remove-from world missile))
+#+nil  (let ((remaining (- (timeout missile) time-delta)))
     (if (<= remaining 0)
 	(remove-from world missile)
 	(setf (timeout missile) remaining)))
