@@ -230,7 +230,6 @@
 ;; 
 (defclass missile (mob)
   ((super :initform nil :initarg :super :accessor super-p)
-   (timeout :initform 1 :accessor timeout)
    (lifetime :initform (make-instance 'timer :seconds 1) :accessor lifetime)))
 
 (defmethod render ((missile missile))
@@ -255,14 +254,14 @@
 ;;-------------------------------------------------------------------
 ;; P O W E R U P
 (defclass powerup (mob)
-  ( (age :initform 0 :accessor age)))
+  ((lifetime :initform (make-instance 'timer :seconds *powerup-max-age*) :accessor lifetime)))
 
 (defmethod initialize-instance :after ((powerup powerup) &key)
   (set-radius 0.02 powerup))
 ;;-------------------------------------------------------------------
-(defclass missile-powerup (powerup) ())
+(defclass powerup-missile (powerup) ())
 
-(defmethod render ((powerup missile-powerup))
+(defmethod render ((powerup powerup-missile))
   (let ((coords (map-coords powerup))
         (radius (map-radius powerup)))
     (draw-circle coords radius
@@ -270,9 +269,9 @@
     (draw-circle coords (round (* radius 0.3))
                  :color *white* :aa t)))
 ;;-------------------------------------------------------------------
-(defclass freeze-powerup (powerup) ())
+(defclass powerup-freeze (powerup) ())
 
-(defmethod render ((powerup freeze-powerup))
+(defmethod render ((powerup powerup-freeze))
   (let ((coords (map-coords powerup))
         (radius (map-radius powerup)))
     (draw-circle coords radius
@@ -284,9 +283,9 @@
 					       (* i 0.525)))
                   :color *white* :aa t)))
 ;;-------------------------------------------------------------------
-(defclass shield-powerup (powerup) ())
+(defclass powerup-shield (powerup) ())
 
-(defmethod render ((powerup shield-powerup))
+(defmethod render ((powerup powerup-shield))
   (let ((coords (map-coords powerup))
         (radius (map-radius powerup)))
     (draw-circle coords radius
@@ -305,8 +304,13 @@
           (make-instance 'timer :seconds seconds)))
 )
 ;;-------------------------------------------------------------------
-
-
+(defun random-powerup (&key pos)
+  (make-instance (case (random 3)
+                   (0 'powerup-missile)
+                   (1 'powerup-freeze)
+                   (2 'powerup-shield))
+                 :pos pos))
+;;-------------------------------------------------------------------
 
 (defun polygon1 ( coords radius direction)
   "return a list of vertices (points) suitable for draw-polygon"
@@ -547,8 +551,7 @@
 
 ;; update powerup
 (defmethod update ((powerup powerup) time-delta (world world))
-  (when (> (ceiling (incf (age powerup) time-delta))
-           *powerup-max-age*) 
+  (when (done (lifetime powerup)) 
     (remove-from world powerup)))
 
 ;; update ship
@@ -717,12 +720,7 @@ dt) world))
 ;;----------------------------
 
 
-(defun random-powerup (&key pos)
-  (make-instance (case (random 3)
-                   (0 'missile-powerup)
-                   (1 'freeze-powerup)
-                   (2 'shield-powerup))
-                 :pos pos))
+
 
 
 
@@ -748,17 +746,17 @@ dt) world))
 
 (defmethod collide ((mob mob) (other mob) (world world)) t)
 
-(defmethod collide :before ((ship ship) (powerup shield-powerup) (world world))
+(defmethod collide :before ((ship ship) (powerup powerup-shield) (world world))
   (add-shield ship :seconds 6))
 
-(defmethod collide :before ((ship ship) (powerup missile-powerup) (world world))
+(defmethod collide :before ((ship ship) (powerup powerup-missile) (world world))
   (add-super-missiles ship :seconds 6))
 
 (defmethod collide :before ((ship ship) (powerup powerup) (world world))
   (remove-from world powerup)
   (add-score world powerup))
 
-(defmethod collide :before ((ship ship) (powerup freeze-powerup) (world world))
+(defmethod collide :before ((ship ship) (powerup powerup-freeze) (world world))
   (add-freeze world :seconds 6))
 
 ;; ship-rock collision
