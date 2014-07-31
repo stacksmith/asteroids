@@ -204,7 +204,6 @@
    (direction :initform 0 :accessor direction)))
 
 (defmethod initialize-instance :after ((rock rock) &key)
-  (setf (pos rock) `(,(random 1.0) ,(random 1.0)))
   (let ((radius (cdr (assoc (size rock)
                             '((big . 0.07) (medium . 0.04) (small . 0.01)))))
         (spd (cdr (assoc (size rock)
@@ -212,9 +211,8 @@
     (set-radius radius rock)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
-            collect (round (* (- 1.0 (random 0.3))
-                              (map-radius rock)))))
-    ;(print (radii rock))
+	     collect (round (* (- 1.0 (random 0.3))
+			       (map-radius rock)))))
     (setf (velocity rock)
           `(,(- (random (* 2 spd)) spd) ,(- (random (* 2 spd)) spd)))))
 
@@ -496,7 +494,7 @@
     (setf timers (make-hash-table))
     (setf (num-of-rocks world) 0)	;
     (dotimes (i level)
-      (add-to world (make-instance 'rock)))
+      (add-to world (make-instance 'rock :pos `(,(random 1.0) ,(random 1.0)))))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
     (add-shield (ship world) :seconds 6)))
 
@@ -730,6 +728,7 @@ dt) world))
 
 (defmethod break-down ((rock rock) (world world))
   (with-slots ((pos pos) (size size)) rock
+(print pos)
     (if (eq size 'small)
       ;; gradually reduce the probability of powerups appearing
       (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
