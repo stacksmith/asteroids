@@ -533,7 +533,7 @@
   (if (done (lifetime x-ship))
       (remove-from world x-ship)
       (setf (direction x-ship ) ;spinning out of control...
-	      (+ (direction x-ship) 0.5)))
+	      (+ (direction x-ship) 0.01)))
 )
 ;; update rock.  rocks also rotate.  Note: if frozen, mob update not called.
 (defmethod update ((rock rock) time-delta (world world))
