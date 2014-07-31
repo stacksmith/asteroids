@@ -126,20 +126,7 @@
 ;;; parameters must be lists of 2 numbers (x y)
 (defun my-distance (a b)
   (sqrt (+ (expt (- (first a) (first b)) 2)
-	   (expt (- (second a) (second b)) 2)))
- #+nil (sqrt (apply #'+
-	       (mapcar (lambda (x)
-			 (expt x 2))
-		       (xy-off-subtract a b)))))
-
-#+nil
-(defun square-from-midpoint (point radius)
-  (rectangle-from-midpoint-* (x point)
-                             (y point)
-                             (* radius 2)
-                             (* radius 2)))
-
-;(defun deg->rad (degs)  (* degs (/ pi 180)))
+	   (expt (- (second a) (second b)) 2))))
 
 
 (defun radial-point-from (p radius angle)
@@ -199,16 +186,14 @@
 ;; R O C K
 ;;
 (defclass rock (mob)
-  ((size :initarg :size :initform 'big :reader size)
+  ((size :initarg :size :initform 3 :reader size)
    (radii :initform nil :accessor radii)
    (rotation :initform (* (- (random 1.0) 0.5) 3 +degrees+) :accessor rotation)
    (direction :initform 0 :accessor direction)))
 
 (defmethod initialize-instance :after ((rock rock) &key)
-  (let ((radius (cdr (assoc (size rock)
-                            '((big . 0.07) (medium . 0.04) (small . 0.01)))))
-        (spd (cdr (assoc (size rock)
-                         '((big . 0.05) (medium . 0.15) (small . 0.25))))))
+  (let ((radius (nth (size rock) '(nil 0.01 0.04 0.07)))
+        (spd (nth (size rock) '(nil 0.25 0.15 0.05))))
     (set-radius radius rock)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
@@ -730,16 +715,14 @@ dt) world))
 
 (defmethod break-down ((rock rock) (world world))
   (with-slots ((pos pos) (size size)) rock
-    (if (eq size 'small)
+    (if (= size 1)
       ;; gradually reduce the probability of powerups appearing
       (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
           `(,(random-powerup :pos pos :velocity (velocity rock)))
           nil)
-      (let ((smaller (cond
-                     ((eq size 'big) 'medium)
-                     ((eq size 'medium) 'small))))
-        `(,(make-instance 'rock :pos pos :size smaller)
-          ,(make-instance 'rock :pos pos :size smaller))))))
+      (progn
+	(add-to world (make-instance 'rock :pos pos :size (1- size)))
+	(add-to world (make-instance 'rock :pos pos :size (1- size)))))))
 
 
 
@@ -769,7 +752,7 @@ dt) world))
     (play-explode1 *sound*)
     (play-explode2 *sound*)
     (play-explode3 *sound*)
-    (play-ufo1-stop *sound*) ;ugly
+    (play-ufo1-stop *sound*) ;ugly: powerup not removed from world
     (add-to world (make-instance 'x-ship 
 				 :pos (pos ship)
 				 :radius (radius ship)
@@ -784,17 +767,14 @@ dt) world))
 
 (defmethod collide :before ((missile missile) (rock rock) (world world))
   (remove-from world rock)
-  (when (not (super-p missile ))
-    (remove-from world missile))
-  (mapcar (lambda (mob)
-            (add-to world mob))
-          (break-down rock world))
+  (when (not (super-p missile )) (remove-from world missile))
+    (break-down rock world) ;it adds smaller rocks to world
   (add-to world (make-instance 'explosion :pos (pos rock) :velocity (velocity rock)))
   (add-score world rock)
   (case (size rock)
-    (big (play-explode1 *sound*))
-    (medium (play-explode2 *sound*))
-    (small (play-explode3 *sound*))))
+    (3 (play-explode1 *sound*))
+    (2 (play-explode2 *sound*))
+    (1 (play-explode3 *sound*))))
 
 
 (defmethod shoot ((ship ship) (world world))
@@ -815,8 +795,7 @@ dt) world))
   (add-score world (* (level world) 10)))
 
 (defmethod add-score ((world world) (rock rock))
-  (add-score world (cdr (assoc (size rock)
-                               '((big . 1) (medium . 2) (small . 5))))))
+  (add-score world (nth (size rock) '(nil 1 2 5))))
 
 
 
@@ -913,21 +892,6 @@ dt) world))
       (key-processor-attract world key :down down)
       (key-processor-game world key :down down)))
 
-
-; play music
-#+nil
-(defun play-music()
-  (if (sdl-mixer:music-playing-p)
-      (progn
-	(sdl-mixer:pause-Music)
-	(setf *music-status* (format nil "Music Paused..." )))
-      (if (sdl-mixer:music-paused-p)
-        (progn
-          (sdl-mixer:resume-Music)
-          (setf *music-status* (format nil "Music Resumed..." )))
-        (progn
-          (sdl-mixer:play-music *music*)
-          (setf *music-status* (format nil "Music Playing..." ))))))
 
 (defclass ambient ()
   ((target  :initform 1000 :accessor target)
