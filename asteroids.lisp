@@ -186,14 +186,15 @@
 ;; R O C K
 ;;
 (defclass rock (mob)
-  ((size :initarg :size :initform 3 :reader size)
+  ((size :initarg :size :initform 0 :reader size)
    (radii :initform nil :accessor radii)
-   (rotation :initform (- (random .08) 0.04) :accessor rotation)
+   (rotation :initform (- (random .04) 0.02) :accessor rotation)
    (direction :initform 0 :accessor direction)))
 
 (defmethod initialize-instance :after ((rock rock) &key)
-  (let ((radius (nth (size rock) '(nil 0.01 0.04 0.07)))
-        (spd (nth (size rock) '(nil 0.25 0.15 0.05))))
+  (let ((radius (nth (size rock) '(0.07 0.04 0.01)))
+        (spd (nth (size rock) '(0.05 0.15 0.25))))
+(print radius)
     (set-radius radius rock)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
@@ -714,15 +715,15 @@ dt) world))
 
 
 (defmethod break-down ((rock rock) (world world))
-  (with-slots ((pos pos) (size size)) rock
-    (if (= size 1)
+  (with-slots ((pos pos) size) rock
+    (if (= size 2)
       ;; gradually reduce the probability of powerups appearing
       (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
-          `(,(random-powerup :pos pos :velocity (velocity rock)))
-          nil)
+	  (add-to world (make-instance 'random-powerup 
+				       :pos pos :velocity (velocity rock))))
       (progn
-	(add-to world (make-instance 'rock :pos pos :size (1- size)))
-	(add-to world (make-instance 'rock :pos pos :size (1- size)))))))
+	(add-to world (make-instance 'rock :pos pos :size (1+ size)))
+	(add-to world (make-instance 'rock :pos pos :size (1+ size)))))))
 
 
 
@@ -772,9 +773,9 @@ dt) world))
   (add-to world (make-instance 'explosion :pos (pos rock) :velocity (velocity rock)))
   (add-score world rock)
   (case (size rock)
-    (3 (play-explode1 *sound*))
-    (2 (play-explode2 *sound*))
-    (1 (play-explode3 *sound*))))
+    (0 (play-explode1 *sound*))
+    (1 (play-explode2 *sound*))
+    (2 (play-explode3 *sound*))))
 
 
 (defmethod shoot ((ship ship) (world world))
@@ -795,7 +796,7 @@ dt) world))
   (add-score world (* (level world) 10)))
 
 (defmethod add-score ((world world) (rock rock))
-  (add-score world (nth (size rock) '(nil 1 2 5))))
+  (add-score world (nth (size rock) '(1 2 5))))
 
 
 
