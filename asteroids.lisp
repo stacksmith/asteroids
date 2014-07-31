@@ -188,7 +188,7 @@
 (defclass rock (mob)
   ((size :initarg :size :initform 3 :reader size)
    (radii :initform nil :accessor radii)
-   (rotation :initform (* (- (random 1.0) 0.5) 3 +degrees+) :accessor rotation)
+   (rotation :initform (- (random .08) 0.04) :accessor rotation)
    (direction :initform 0 :accessor direction)))
 
 (defmethod initialize-instance :after ((rock rock) &key)
