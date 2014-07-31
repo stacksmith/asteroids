@@ -240,6 +240,11 @@
                  :color *explosion-color* :aa t)))
 ;;-------------------------------------------------------------------
 ;; P O W E R U P
+;; 
+;; A powerup is a visible object with a lifetime, to be picked up by a ship.
+;; Not to be confused with the powerup-effect, which is imposed on:
+;; ship/missiles for super-missiles and shield
+;; freeze for world
 (defclass powerup (mob)
   ((lifetime :initform (make-instance 'timer :seconds *powerup-max-age*) :accessor lifetime)))
 
@@ -538,7 +543,6 @@
 
 ;; update powerup
 (defmethod update :after ((powerup powerup) time-delta (world world))
-
   (when (donex (lifetime powerup)) 
     (remove-from world powerup)))
 
