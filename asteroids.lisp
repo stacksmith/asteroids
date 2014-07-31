@@ -29,7 +29,7 @@
 (defparameter *missile-velocity* 0.8)
 (defparameter *rock-sides* 12)
  
-(defparameter *powerup-max-age* 9)
+(defparameter *powerup-max-age* 9000)
 (defparameter *explosion-max-radius* 0.1)
 (defparameter *explosion-color* (sdl:color :r 180 :g 30 :b 30)) 
 (defparameter *lr-map* 0) ;map left=1 right=2 both=3
@@ -113,7 +113,7 @@
   (mapcar #'+ a b))
 
 (defun xy-off-scale (v factor)
-  (mapcar #'* v (list factor factor)))
+  (mapcar #'* v (list factor factor))  )
 
 (defun xy-off-subtract (a b)
   (mapcar #'- a b))
@@ -147,10 +147,11 @@
 ;;
 ;; A timer keeps a target tick that we are waiting for.
 (defclass timer ()
-  (( target :initarg :seconds :initform 0 :accessor target)))
+  (( target :initarg :ms :initform 0 :accessor target)))
 
+;; add system-ticks to initial ms value
 (defmethod initialize-instance :after ((timer timer) &key)
-  (setf (target timer) (+ (system-ticks) (* 1000 (target timer)))))
+  (incf (target timer) (system-ticks) ))
 
 (defmethod donex ((timer timer))
   (<= (target timer) (system-ticks)))
@@ -217,7 +218,7 @@
 ;; 
 (defclass missile (mob)
   ((super :initform nil :initarg :super :accessor super-p)
-   (lifetime :initform (make-instance 'timer :seconds 1) :accessor lifetime)))
+   (lifetime :initform (make-instance 'timer :ms 1000) :accessor lifetime)))
 
 (defmethod render ((missile missile))
   (let ((coords (map-coords missile)))
@@ -242,14 +243,18 @@
 ;; P O W E R U P
 ;; 
 ;; A powerup is a visible object with a lifetime, to be picked up by a ship.
-;; Not to be confused with the powerup-effect, which is imposed on:
+;; Not to be confused with the powerup-effect, which are contained in
+;; timers of a ship or world...
 ;; ship/missiles for super-missiles and shield
 ;; freeze for world
 (defclass powerup (mob)
-  ((lifetime :initform (make-instance 'timer :seconds *powerup-max-age*) :accessor lifetime)))
+  ((lifetime :initform (make-instance 'timer :ms *powerup-max-age*) :accessor lifetime)))
 
 (defmethod initialize-instance :after ((powerup powerup) &key)
   (set-radius 0.02 powerup))
+
+
+;(defclass powerup-effect ()  ((lifetime :initform (make-instance 'timer :seconds ))))
 ;;-------------------------------------------------------------------
 (defclass powerup-missile (powerup) ())
 
@@ -290,7 +295,7 @@
                   :color *white*  :aa t)))
 
 ;;-------------------------------------------------------------------
-(defun make-random- (&key pos velocity)
+(defun make-random-powerup (&key pos velocity)
   (make-instance (case (random 3)
                    (0 'powerup-missile)
                    (1 'powerup-freeze)
@@ -391,19 +396,19 @@
   (if (powerup-active-p ship 'super-missiles)
     (set-seconds (gethash 'super-missiles (timers ship)) seconds)
     (setf (gethash 'super-missiles (timers ship))
-          (make-instance 'timer :seconds seconds))))
+          (make-instance 'timer :ms (* 1000 seconds)))))
 
 (defmethod add-shield ((ship ship) &key (seconds 0))
   (if (powerup-active-p ship 'shield)
     (set-seconds (gethash 'shield (timers ship)) seconds)
     (setf (gethash 'shield (timers ship))
-          (make-instance 'timer :seconds seconds)))
+          (make-instance 'timer :ms (* 1000 seconds))))
 )
 
 ;;-------------------------------------------------------------------
 ;; X - S H I P
 (defclass x-ship (mob) 
-  ((lifetime :initform (make-instance 'timer :seconds 1) :accessor lifetime)
+  ((lifetime :initform (make-instance 'timer :ms 1000) :accessor lifetime)
    (direction :initarg :direction :accessor direction)
    (fade :initform 255 :accessor fade)))
 
@@ -597,7 +602,7 @@
         (when (functionp do)
           (funcall do)))
       (setf (gethash timer-name (timers world))
-            (make-instance 'timer :seconds seconds)))))
+            (make-instance 'timer :ms (* 1000  seconds))))))
 
 
 (defmethod update-world ((world world))
@@ -621,7 +626,7 @@ dt) world))
                  (incf (lives world))
                  (start-next-level world)
 		 (reset-ambient (ambient world))
-		 (play-ufo1-stop *sound*) ;ugly
+		 (play-ufo1-stop *sound*) ;ugly-powerups are not removed?
 		)))
 
   ;; restart level 3 seconds after death - game over if no more lives  
@@ -811,7 +816,7 @@ dt) world))
   (if (frozen-p world)
     (set-seconds (gethash 'freeze (timers world)) seconds)
     (setf (gethash 'freeze (timers world))
-          (make-instance 'timer :seconds seconds))))
+          (make-instance 'timer :ms (* 1000 seconds)))))
 
 
 
