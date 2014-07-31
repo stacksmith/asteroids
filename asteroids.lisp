@@ -634,7 +634,7 @@ dt) world))
 		 (play-ufo1-stop *sound*) ;ugly
 		)))
 
-  ;; restart level 3 seconds after death - game over if no more lives
+  ;; restart level 3 seconds after death - game over if no more lives  
 
   (unless (ship world)
     (after world
