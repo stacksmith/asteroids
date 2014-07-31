@@ -24,7 +24,7 @@
 (defparameter *screen-height* 600)
  
 (defparameter *window* nil)
-(defparameter *thrust-factor* 0.01)
+(defparameter *thrust-factor* 0.003)
 (defparameter *friction* 0.995)
 (defparameter *missile-velocity* 0.8)
 (defparameter *rock-sides* 12)
@@ -297,12 +297,6 @@
                     ,(radial-point-from coords (round (* radius 0.8)) 2.3625))
                   :color *white*  :aa t)))
 
-(defmethod add-shield ((ship ship) &key (seconds 0))
-  (if (powerup-active-p ship 'shield)
-    (set-seconds (gethash 'shield (timers ship)) seconds)
-    (setf (gethash 'shield (timers ship))
-          (make-instance 'timer :seconds seconds)))
-)
 ;;-------------------------------------------------------------------
 (defun random-powerup (&key pos)
   (make-instance (case (random 3)
@@ -407,23 +401,28 @@
     (setf (gethash 'super-missiles (timers ship))
           (make-instance 'timer :seconds seconds))))
 
+(defmethod add-shield ((ship ship) &key (seconds 0))
+  (if (powerup-active-p ship 'shield)
+    (set-seconds (gethash 'shield (timers ship)) seconds)
+    (setf (gethash 'shield (timers ship))
+          (make-instance 'timer :seconds seconds)))
+)
 
 ;;-------------------------------------------------------------------
 ;; X - S H I P
 (defclass x-ship (mob) 
-  ((timeout :initform 1 :accessor timeout)
-   (direction :initarg :direction :accessor direction)))
+  ((lifetime :initform (make-instance 'timer :seconds 1) :accessor lifetime)
+   (direction :initarg :direction :accessor direction)
+   (fade :initform 255 :accessor fade)))
 
 (defmethod render ((x-ship x-ship))
   (draw-polygon (polygon1 (map-coords x-ship) 
 		       (map-radius x-ship) 
 		       (direction x-ship))
-		:color (color 
-			:r (round  (* 255 (timeout x-ship))) 
-			:g 0
-			:b 0))
-  (setf (direction x-ship ) ;spinning out of control...
-	(+ (direction x-ship) 0.5)))
+		:color ( color
+			 :r (decf (fade x-ship))
+			 :g 0
+			 :b 0)))
 ;;-------------------------------------------------------------------
 ;; W O R L D
 ;;
@@ -531,10 +530,10 @@
 
 ;; update x-ship
 (defmethod update :after  ((x-ship x-ship) time-delta (world world))
-  (let ((remaining (- (timeout x-ship) time-delta)))
-    (if (<= remaining 0)
-	(remove-from world x-ship)
-	(setf (timeout x-ship) remaining)))
+  (if (done (lifetime x-ship))
+      (remove-from world x-ship)
+      (setf (direction x-ship ) ;spinning out of control...
+	      (+ (direction x-ship) 0.5)))
 )
 ;; update rock.  rocks also rotate.  Note: if frozen, mob update not called.
 (defmethod update ((rock rock) time-delta (world world))
