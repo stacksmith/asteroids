@@ -3,8 +3,11 @@
 ; Controls: 
 ;; Rotate a f   Thrust j  Fire <spacebar>
 ;;
-;; TODO:
-;; -convert timers to ms
+;; To run from commandline: sbcl --load asteroids.lisp --eval "(asteroids:main)"
+;;
+;; In emacs, evaluate the 3 ql:quickload forms with C-c C-c on each line;
+;; compile entire file with C-c C-k
+;; in REPL, enter (asteroids:main) or do (in-package asteroids), then (main).
 ;;
 (ql:quickload "lispbuilder-sdl")
 (ql:quickload "lispbuilder-sdl-gfx")
@@ -14,7 +17,6 @@
 (defpackage :asteroids
   (:use :cl :sdl )
   (:export main)
-  (:export *explosion-color*)
 )
 
 (in-package :asteroids)
@@ -42,10 +44,7 @@
 
 (defparameter *sound* nil)
 (defvar *world* nil)
-(defvar *audio-path* (make-pathname :host (pathname-host #.(or *compile-file-truename*
-							     *load-truename*))
-                                  :directory (pathname-directory #.(or *compile-file-truename*
-                                                                       *load-truename*))))
+
 (defclass sound ()
   ((opened :initform nil :accessor opened)
    (sample :initform nil :accessor sample)) )
@@ -66,7 +65,7 @@
   (play-explode1 sound)
   )
 (defmethod shut-down ((sound sound))
-  (sdl-mixer:Halt-Music)
+  ;(sdl-mixer:Halt-Music)
   ;(sdl-mixer:free music)
   (sdl-mixer:close-audio)
 
@@ -121,7 +120,7 @@
 (defun xy-off-create (angle-rad magnitude)
   "Create a 'xy-off'"
   (list (* magnitude (sin angle-rad))
-	(* magnitude (cos angle-rad))))
+	(* magnitude (cos angle-rad)))) 
 ;;; distance between point a and point b
 ;;; parameters must be lists of 2 numbers (x y)
 (defun my-distance (a b)
@@ -195,7 +194,6 @@
 (defmethod initialize-instance :after ((rock rock) &key)
   (let ((radius (nth (size rock) '(nil 0.07 0.04 0.01)))
         (spd (nth (size rock) '(nil 0.05 0.15 0.25))))
-(print radius)
     (set-radius radius rock)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
