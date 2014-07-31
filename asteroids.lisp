@@ -132,6 +132,7 @@
 			 (expt x 2))
 		       (xy-off-subtract a b)))))
 
+#+nil
 (defun square-from-midpoint (point radius)
   (rectangle-from-midpoint-* (x point)
                              (y point)
@@ -164,7 +165,7 @@
 (defmethod initialize-instance :after ((timer timer) &key)
   (setf (target timer) (+ (system-ticks) (* 1000 (target timer)))))
 
-(defmethod done ((timer timer))
+(defmethod donex ((timer timer))
   (<= (target timer) (system-ticks)))
 
 (defmethod set-seconds ((timer timer) seconds)
@@ -388,7 +389,7 @@
 (defmethod powerup-active-p ((ship ship) powerup)
   (let ((timer (gethash powerup (timers ship) nil)))
     (and timer
-         (not (done timer)))))
+         (not (donex timer)))))
 
 
 
@@ -499,7 +500,8 @@
     (dotimes (i level)
       (add-to world (make-instance 'rock :pos `(,(random 1.0) ,(random 1.0)))))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
-    (add-shield (ship world) :seconds 6)))
+    (add-shield (ship world) :seconds 6)
+    ))
 
 (defmethod level-cleared-p ((world world))
   ;(print (num-of-rocks world))
@@ -517,7 +519,7 @@
 
 ;; update missile
 (defmethod update :after ((missile missile) time-delta (world world))
-  (if (done (lifetime missile))
+  (if (donex (lifetime missile))
       (remove-from world missile))
 #+nil  (let ((remaining (- (timeout missile) time-delta)))
     (if (<= remaining 0)
@@ -530,7 +532,7 @@
 
 ;; update x-ship
 (defmethod update :after  ((x-ship x-ship) time-delta (world world))
-  (if (done (lifetime x-ship))
+  (if (donex (lifetime x-ship))
       (remove-from world x-ship)
       (setf (direction x-ship ) ;spinning out of control...
 	      (+ (direction x-ship) 0.05)))
@@ -550,8 +552,8 @@
 
 ;; update powerup
 (defmethod update :after ((powerup powerup) time-delta (world world))
-(print (velocity powerup))
-  (when (done (lifetime powerup)) 
+
+  (when (donex (lifetime powerup)) 
     (remove-from world powerup)))
 
 ;; update ship
@@ -600,7 +602,7 @@
 (defmethod after ((world world) timer-name &key (seconds 0) do)
   (multiple-value-bind (timer exists) (gethash timer-name (timers world))
     (if exists
-      (when (done timer)
+      (when (donex timer)
         (remhash timer-name (timers world))
         (when (functionp do)
           (funcall do)))
@@ -610,14 +612,14 @@
 
 (defmethod update-world ((world world))
   (update-ambient (ambient *world*) )
-
-
-#+nil  (maphash (lambda (name timer)
-             (declare (ignore name))
-             (update-timer timer (sdl:dt)))
-           (timers world))
+  
+  
+  #+nil  (maphash (lambda (name timer)
+		    (declare (ignore name))
+		    (update-timer timer (sdl:dt)))
+		  (timers world))
   (dolist (mob (mobs world))
-
+    
     (update mob (
 dt) world))
   ;; start next level 3 seconds after clearing
@@ -628,7 +630,10 @@ dt) world))
            :do (lambda ()
                  (incf (lives world))
                  (start-next-level world)
-		 (reset-ambient (ambient world)))))
+		 (reset-ambient (ambient world))
+		 (play-ufo1-stop *sound*) ;ugly
+		)))
+
   ;; restart level 3 seconds after death - game over if no more lives
 
   (unless (ship world)
@@ -654,7 +659,7 @@ dt) world))
 (defmethod frozen-p ((world world))
   (let ((timer (gethash 'freeze (timers world) nil)))
     (and timer
-         (not (done timer)))))
+         (not (donex timer)))))
 
 ;; Attract screen
 (defmethod render-attract ((world world))
@@ -764,6 +769,7 @@ dt) world))
     (play-explode1 *sound*)
     (play-explode2 *sound*)
     (play-explode3 *sound*)
+    (play-ufo1-stop *sound*) ;ugly
     (add-to world (make-instance 'x-ship 
 				 :pos (pos ship)
 				 :radius (radius ship)
@@ -772,6 +778,7 @@ dt) world))
     (remove-from world ship)
     (add-to world (make-instance 'explosion :pos (pos ship) :velocity (velocity ship)))
     (decf (lives world))
+ 
   
     ))
 
