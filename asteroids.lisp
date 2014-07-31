@@ -24,7 +24,7 @@
 (defparameter *screen-height* 600)
  
 (defparameter *window* nil)
-(defparameter *thrust-factor* 0.003)
+(defparameter *thrust-factor* 0.005)
 (defparameter *friction* 0.995)
 (defparameter *missile-velocity* 0.8)
 (defparameter *rock-sides* 12)
@@ -298,12 +298,12 @@
                   :color *white*  :aa t)))
 
 ;;-------------------------------------------------------------------
-(defun random-powerup (&key pos)
+(defun random-powerup (&key pos velocity)
   (make-instance (case (random 3)
                    (0 'powerup-missile)
                    (1 'powerup-freeze)
                    (2 'powerup-shield))
-                 :pos pos))
+                 :pos pos :velocity velocity))
 ;;-------------------------------------------------------------------
 
 (defun polygon1 ( coords radius direction)
@@ -549,7 +549,8 @@
     (remove-from world explosion)))
 
 ;; update powerup
-(defmethod update ((powerup powerup) time-delta (world world))
+(defmethod update :after ((powerup powerup) time-delta (world world))
+(print (velocity powerup))
   (when (done (lifetime powerup)) 
     (remove-from world powerup)))
 
@@ -722,20 +723,19 @@ dt) world))
 
 
 
-
 (defmethod break-down ((rock rock) (world world))
   (with-slots ((pos pos) (size size)) rock
-(print pos)
     (if (eq size 'small)
       ;; gradually reduce the probability of powerups appearing
       (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
-          `(,(random-powerup :pos pos))
+          `(,(random-powerup :pos pos :velocity (velocity rock)))
           nil)
       (let ((smaller (cond
                      ((eq size 'big) 'medium)
                      ((eq size 'medium) 'small))))
         `(,(make-instance 'rock :pos pos :size smaller)
           ,(make-instance 'rock :pos pos :size smaller))))))
+
 
 
 
