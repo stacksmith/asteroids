@@ -42,8 +42,12 @@
 ;(defparameter *but-fire*   :sdl-key-space)
 ;(defparameter *but-thrust* :sdl-key-j)
 
+(defparameter *world* nil)
 (defparameter *sound* nil)
-(defvar *world* nil)
+
+;;-------------------------------------------------------------------
+;; S O U N D
+;;
 
 (defclass sound ()
   ((opened :initform nil :accessor opened)
@@ -53,8 +57,7 @@
   (sdl-mixer:halt-sample))
 
 (defmethod initialize ((sound sound))
-  (sdl-mixer:OPEN-AUDIO)
-  (setf (opened sound) (sdl-mixer:open-audio :chunksize 1024 :enable-callbacks nil))
+  (setf (opened sound) (sdl-mixer:open-audio))
   (format t "mixer opened...")
   (setf (sample sound)
 	(mapcar #'sdl-mixer:load-sample 
@@ -65,7 +68,7 @@
   (play-explode1 sound)
   )
 (defmethod shut-down ((sound sound))
-  ;(sdl-mixer:Halt-Music)
+  (sdl-mixer:halt-sample :channel t)
   ;(sdl-mixer:free music)
   (sdl-mixer:close-audio)
 
@@ -83,13 +86,15 @@
   (sdl-mixer:play-sample (fourth (sample sound))))
 
 (defmethod play-thrust ((sound sound))
-  (sdl-mixer:play-sample (fifth (sample sound)) :channel 1 :loop t))
+  (sdl-mixer:play-sample (fifth (sample sound)) :loop t))
 
 (defmethod play-thrust-stop ((sound sound))
-  (sdl-mixer:halt-sample :channel 1))
+  (sdl-mixer:halt-sample)
+  )
 
 (defmethod play-thump-stop ((sound sound))
   (sdl-mixer:halt-sample :channel 2))
+
 (defmethod play-thumplo ((sound sound)) 
   (play-thump-stop sound)
   (sdl-mixer:play-sample (sixth (sample sound)) :channel 2 ))
@@ -104,6 +109,7 @@
 
 (defmethod play-ufo2 ((sound sound))
   (sdl-mixer:play-sample (ninth (sample sound)) :channel 4 :loop t))
+
 (defmethod play-ufo2-stop ((sound sound))
   (sdl-mixer:halt-sample :channel 4))
 
@@ -935,7 +941,6 @@ dt) world))
 (defun music-finished-action ()
   (sdl-mixer:register-music-finished
    (lambda ())))
-
 
 
 (defun main ()
