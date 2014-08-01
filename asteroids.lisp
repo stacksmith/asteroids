@@ -51,10 +51,12 @@
 
 (defclass sound ()
   ((opened :initform nil :accessor opened)
-   (sample :initform nil :accessor sample)) )
+   (sample :initform nil :accessor sample)
+   (music  :initform nil :accessor music)))
 
 (defmethod reset ((sound sound))
-  (sdl-mixer:halt-sample))
+  (sdl-mixer:halt-sample)
+  (sdl-mixer:halt-music))
 
 (defmethod initialize ((sound sound))
   (setf (opened sound) (sdl-mixer:open-audio))
@@ -64,11 +66,16 @@
 		'("sounds/explode1.wav" "sounds/explode2.wav" "sounds/explode3.wav" "sounds/fire.wav" 
 		  "sounds/thrust.wav"   "sounds/thumplo.wav"  "sounds/thumphi.wav" "sounds/lsaucer.wav"
 		  "sounds/ssaucer.wav")))
+  (setf (music sound) (sdl-mixer:load-music "sounds/music.mp3"))
   (sdl-mixer:allocate-channels 16)
   (play-explode1 sound)
   )
+
+
 (defmethod shut-down ((sound sound))
   (sdl-mixer:halt-sample :channel t)
+  (sdl-mixer:halt-music)
+  (sdl-mixer:free (music sound))
   ;(sdl-mixer:free music)
   (sdl-mixer:close-audio)
 
@@ -113,7 +120,12 @@
 (defmethod play-ufo2-stop ((sound sound))
   (sdl-mixer:halt-sample :channel 4))
 
+(defmethod play-music ((sound sound))
+  (sdl-mixer:halt-music (music sound))
+  (sdl-mixer:play-music (music sound) :fade 500.0))
 
+(defmethod stop-music ((sound sound))
+  (sdl-mixer:halt-music (music sound) ))
 (defun xy-off-sum (a b)
   (mapcar #'+ a b))
 
@@ -438,7 +450,7 @@
    (high-score :initform 0 :accessor high-score)
    (lives :initform 1  :accessor lives)
    (paused :initform nil :accessor paused)
-   (ambient :initform (make-instance 'ambient :period 1000) :accessor ambient)))
+   (thumper :initform (make-instance 'thumper :period 1000) :accessor thumper)))
 
 (defmethod reset ((world world))
   (setf (mobs world) nil)
@@ -501,6 +513,8 @@
       (add-to world (make-instance 'rock :pos `(,(random 1.0) ,(random 1.0)))))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
     (add-shield (ship world) :seconds 6)
+    (play-music *sound*)
+    
     ))
 
 (defmethod level-cleared-p ((world world))
@@ -610,7 +624,7 @@
 
 
 (defmethod update-world ((world world))
-  (update-ambient (ambient *world*) )
+  ;(update-thumper (thumper *world*) )
   
   
   #+nil  (maphash (lambda (name timer)
@@ -618,18 +632,18 @@
 		    (update-timer timer (sdl:dt)))
 		  (timers world))
   (dolist (mob (mobs world))
-    
-    (update mob (
-dt) world))
+    (update mob (sdl:dt) world))
   ;; start next level 3 seconds after clearing
   (when (level-cleared-p world)
+    (stop-music *sound*)
     (after world
            'cleared
            :seconds 3
            :do (lambda ()
                  (incf (lives world))
                  (start-next-level world)
-		 (reset-ambient (ambient world))
+		 ;(reset-thumper (thumper world))
+		 ;(sdl-mixer:halt-music)
 		 (play-ufo1-stop *sound*) ;ugly-powerups are not removed?
 		)))
 
@@ -907,15 +921,15 @@ dt) world))
       (key-processor-game world key :down down)))
 
 
-(defclass ambient ()
+(defclass thumper ()
   ((target  :initform 1000 :accessor target)
    (phasex   :initform 1   :accessor phasex)
    (period  :initform 1500 :accessor period :initarg :period)))
 
-;(defmethod initialize-instance :after ((ambient ambient) &key)  (setf (nt) (period ambient)))
+;(defmethod initialize-instance :after ((thumper thumper) &key)  (setf (nt) (period thumper)))
 
-(defmethod update-ambient ((ambient ambient) )
-  (with-slots ((target target) (phasex phasex) (period period)) ambient
+(defmethod update-thumper ((thumper thumper) )
+  (with-slots ((target target) (phasex phasex) (period period)) thumper
     (let ((sdl-ticks (sdl-get-ticks) ))
       (if (< target sdl-ticks)
 	  (progn 
@@ -927,10 +941,10 @@ dt) world))
 	    (setf target  (+ sdl-ticks period))
 	    (if (> period 400) (decf period 40))))))) 
 
-(defmethod reset-ambient ((ambient ambient))
-  (setf (period ambient) 1500)
-  (setf (target ambient) 0)
-  (setf (phasex ambient) 1)
+(defmethod reset-thumper ((thumper thumper))
+  (setf (period thumper) 1500)
+  (setf (target thumper) 0)
+  (setf (phasex thumper) 1)
 )
 (defun sample-finished-action ()
   (sdl-mixer:register-sample-finished
