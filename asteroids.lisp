@@ -744,7 +744,8 @@
   (with-accessors ((pos pos-of)(size size-of))rock
     (if (= size 3)
 	;; gradually reduce the probability of powerups appearing
-	(if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
+	(if (and (< 1 (num-of-rocks world))
+		 (< (random 100) (/ 100 (+ 4 (* (level world) 0.3)))))
 	    (add-to world (make-random-powerup 
 			   :pos pos :velocity (velocity-of rock))))
 	(progn
@@ -831,8 +832,10 @@
 (defmethod add-freeze ((world world) &key (seconds 0))
   (if (frozen-p world)
     (set-seconds (gethash 'freeze (timers world)) seconds)
-    (setf (gethash 'freeze (timers world))
-          (make-instance 'timer :ms (* 1000 seconds)))))
+    (progn
+      ;(sdf-mixer:pause-music) ;would be nice, but unpausing is hard!
+      (setf (gethash 'freeze (timers world))
+	    (make-instance 'timer :ms (* 1000 seconds))))))
 
 
 
