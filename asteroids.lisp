@@ -124,7 +124,7 @@
 
 (defmethod play-music ((sound sound))
   (sdl-mixer:halt-music (music sound))
-  (sdl-mixer:play-music (music sound) :fade 500.0))
+  (sdl-mixer:play-music (music sound) :fade 500.0 :loop t))
 
 (defmethod stop-music ((sound sound))
   (sdl-mixer:halt-music (music sound) ))
