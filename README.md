@@ -1,21 +1,20 @@
 asteroids
 =========
 
+The game has been tuned for playability, added sounds, keyboard controls
+and a built-in REPL.
+
 Forked from ASTeroids by github user andyhd.  See README.old and the repo.
 Thank you andyhd!
 
 Clean-up
 --------
 
-Code has been re-organized and cleaned up.  Some names have been altered
-to make it more sensible.  AST pun removed as too annoying.
+Code has been re-organized and cleaned up.  Names have been altered
+to make it more sensible and bugs fixed.
 
 ESC now brings you to a REPL.  Examine the game state, recompile anything
 (carefully).
-
-The game is also visually upgraded - the ship and the rocks are being 
-adjusted to look better.  The game is now keyboard controlled (the mouse 
-was not for me).  Gameplay has been severely whomped upon.
 
 I also added audio using MAME asteroids samples.  lispbuilder-sdl-mixer is 
 fragile and very sensitive to being shut down correctly in an interactive 
