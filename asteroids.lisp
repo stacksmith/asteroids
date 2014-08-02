@@ -66,7 +66,9 @@
 		'("sounds/explode1.wav" "sounds/explode2.wav" "sounds/explode3.wav" "sounds/fire.wav" 
 		  "sounds/thrust.wav"   "sounds/thumplo.wav"  "sounds/thumphi.wav" "sounds/lsaucer.wav"
 		  "sounds/ssaucer.wav"  "sounds/phaser.wav")))
-  (setf (music sound) (sdl-mixer:load-music "sounds/music.mp3"))
+  (setf (music sound) 
+	(mapcar #' sdl-mixer:load-music
+		   '( "sounds/music.mp3" "sounds/haters.mp3" )))
   (sdl-mixer:allocate-channels 16)
   (play-phaser sound)
   )
@@ -75,7 +77,7 @@
 (defmethod shut-down ((sound sound))
   (sdl-mixer:halt-sample :channel t)
   (sdl-mixer:halt-music)
-  (sdl-mixer:free (music sound))
+  (mapcar #'sdl-mixer:free (music sound))
   ;(sdl-mixer:free music)
   (sdl-mixer:close-audio)
 
@@ -122,9 +124,9 @@
 (defmethod play-phaser ((sound sound))
   (sdl-mixer:play-sample (tenth (sample sound)) ))
 
-(defmethod play-music ((sound sound))
-  (sdl-mixer:halt-music (music sound))
-  (sdl-mixer:play-music (music sound) :fade 500.0 :loop t))
+(defmethod play-music ((sound sound) level)
+  (sdl-mixer:halt-music)
+  (sdl-mixer:play-music (elt (music sound) (mod level (length (music sound)))) :fade 500.0 :loop t))
 
 (defmethod stop-music ((sound sound))
   (sdl-mixer:halt-music (music sound) ))
@@ -520,7 +522,7 @@
       (add-to world (make-instance 'rock :pos `(,(random 1.0) ,(random 1.0)))))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
     (add-shield (ship world) :seconds 6)
-    (play-music *sound*)
+    (play-music *sound* level)
     
     ))
 
@@ -659,7 +661,7 @@
 		       (add-to world ship)
 		       (add-shield ship :seconds 6)
 		       (reset *sound*)
-		       (play-music *sound*)))))))
+		       (play-music *sound* (level world))))))))
 
 
 
