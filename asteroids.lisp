@@ -65,10 +65,10 @@
 	(mapcar #'sdl-mixer:load-sample 
 		'("sounds/explode1.wav" "sounds/explode2.wav" "sounds/explode3.wav" "sounds/fire.wav" 
 		  "sounds/thrust.wav"   "sounds/thumplo.wav"  "sounds/thumphi.wav" "sounds/lsaucer.wav"
-		  "sounds/ssaucer.wav")))
+		  "sounds/ssaucer.wav"  "sounds/phaser.wav")))
   (setf (music sound) (sdl-mixer:load-music "sounds/music.mp3"))
   (sdl-mixer:allocate-channels 16)
-  (play-explode1 sound)
+  (play-phaser sound)
   )
 
 
@@ -116,9 +116,11 @@
 
 (defmethod play-ufo2 ((sound sound))
   (sdl-mixer:play-sample (ninth (sample sound)) :channel 4 :loop t))
-
 (defmethod play-ufo2-stop ((sound sound))
   (sdl-mixer:halt-sample :channel 4))
+
+(defmethod play-phaser ((sound sound))
+  (sdl-mixer:play-sample (tenth (sample sound)) ))
 
 (defmethod play-music ((sound sound))
   (sdl-mixer:halt-music (music sound))
@@ -240,6 +242,10 @@
   ((super :initform nil :initarg :super :accessor super-p)
    (lifetime :initform (make-instance 'timer :ms 1000) :accessor lifetime)))
 
+(defmethod initialize-instance :after ((missile missile) &key)
+  (if (super-p missile)
+      (play-phaser *sound*)
+      (play-fire *sound*)))
 (defmethod render ((missile missile))
   (let ((coords (map-coords missile)))
     (draw-circle coords 1 :color *white*)
@@ -805,7 +811,6 @@
 (defmethod shoot ((ship ship) (world world))
   "Fire a missile using ship's direction"
   (add-to world (ship-fire ship))
-  (play-fire *sound*)
 )
 
 
