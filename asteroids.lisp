@@ -204,7 +204,7 @@
 ;; Represents an object that can rotate and face
 (defclass mob-rot (mob)
   ((rotation :initform 0 :accessor rotation-of)
-   (direction :initform 0 :accessor direction-of)))
+   (direction :initform 0 :initarg :direction :accessor direction-of)))
 ;;-------------------------------------------------------------------
 ;; R O C K
 ;;
@@ -573,8 +573,9 @@
 ;; update ship
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
-  ;;todo:map these
-  (cond 
+  ;;
+  (setf (rotation-of ship) (elt '(0 1 -1 0) *lr-map*))
+  #+nil(cond 
     ((= *lr-map* 0) (setf (rotation-of ship) 0))
     ((= *lr-map* 1) (setf (rotation-of ship) 1)) 
     ((= *lr-map* 2) (setf (rotation-of ship) -1)) 
