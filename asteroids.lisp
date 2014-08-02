@@ -68,7 +68,7 @@
 		  "sounds/ssaucer.wav"  "sounds/phaser.wav")))
   (setf (music sound) 
 	(mapcar #' sdl-mixer:load-music
-		   '( "sounds/music.mp3" "sounds/haters.mp3" )))
+		   '( "sounds/music.mp3" "sounds/haters.mp3" "sounds/biding.mp3" "sounds/banjo.mp3")))
   (sdl-mixer:allocate-channels 16)
   (play-phaser sound)
   )
