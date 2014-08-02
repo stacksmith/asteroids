@@ -246,6 +246,7 @@
   (if (super-p missile)
       (play-phaser *sound*)
       (play-fire *sound*)))
+
 (defmethod render ((missile missile))
   (let ((coords (map-coords missile)))
     (draw-circle coords 1 :color *white*)
@@ -509,8 +510,7 @@
                    (best-level best-level)
                    (mobs mobs)
                    (timers timers)
-                   (ship ship))
-      world
+                   (ship ship)) world
     (incf level)
     (setf best-level (max best-level level))
     (setf mobs nil)
@@ -627,7 +627,7 @@
 
 
 (defmethod update-world ((world world))
-  ;(update-thumper (thumper *world*) )
+					;(update-thumper (thumper *world*) )
   
   
   #+nil  (maphash (lambda (name timer)
@@ -639,23 +639,18 @@
   ;; start next level 3 seconds after clearing
   (when (level-cleared-p world)
     (stop-music *sound*)
-    (after world
-           'cleared
-           :seconds 3
+    (after world 'cleared :seconds 3
            :do (lambda ()
                  (incf (lives world))
                  (start-next-level world)
-		 ;(reset-thumper (thumper world))
-		 ;(sdl-mixer:halt-music)
+					;(reset-thumper (thumper world))
+					;(sdl-mixer:halt-music)
 		 (play-ufo1-stop *sound*) ;ugly-powerups are not removed?
-		)))
+		 )))
 
   ;; restart level 3 seconds after death - game over if no more lives  
-
   (unless (ship world)
-    (after world
-	   'death
-	   :seconds 3
+    (after world 'death :seconds 3
 	   :do (lambda ()
 		 (if (< (lives world) 1)
 		     (setf (level world) 0) ; game over
@@ -663,7 +658,8 @@
 		       
 		       (add-to world ship)
 		       (add-shield ship :seconds 6)
-		       (reset *sound*)))))))
+		       (reset *sound*)
+		       (play-music *sound*)))))))
 
 
 
