@@ -179,45 +179,49 @@
 ;; M O B 
 ;;
 (defclass mob ()
-  ((pos :initform '(0.5 0.5) :initarg :pos  :accessor pos)
-   (radius :initform 0 :initarg :radius :accessor radius :writer set-radius)
-   (velocity :initform '(0 0) :initarg :velocity  :accessor velocity)))
+  ((pos :initform '(0.5 0.5) :initarg :pos  :accessor pos-of)
+   (radius :initform 0 :initarg :radius :accessor radius-of :writer set-radius)
+   (velocity :initform '(0 0) :initarg :velocity  :accessor velocity-of)))
 
 (defmethod map-coords ((mob mob))
   "create a point from mob's fractional coordinates"
-  (point :x (* *screen-width* (first (pos mob)))
-	 :y (* *screen-height* (second (pos mob)))))
+  (point :x (* *screen-width* (first (pos-of mob)))
+	 :y (* *screen-height* (second (pos-of mob)))))
 
 (defmethod map-radius ((mob mob))
-  (round (* (radius mob) *screen-width*))) ;radius is required to be an int
+  (round (* (radius-of mob) *screen-width*))) ;radius-of is required to be an int
 
 
 (defmethod intersects-p ((mob mob) (other mob))
-  (< (my-distance (pos mob) (pos other))
-     (+ (radius mob) (radius other))))
+  (< (my-distance (pos-of mob) (pos-of other))
+     (+ (radius-of mob) (radius-of other))))
 
 (defmethod render ((mob mob))
   (values))
-
-
+;;-------------------------------------------------------------------
+;; M O B - R O T
+;;
+;; Represents an object that can rotate and face
+(defclass mob-rot (mob)
+  ((rotation :initform 0 :accessor rotation-of)
+   (direction :initform 0 :accessor direction-of)))
 ;;-------------------------------------------------------------------
 ;; R O C K
 ;;
-(defclass rock (mob)
-  ((size :initarg :size :initform 1 :reader size)
-   (radii :initform nil :accessor radii)
-   (rotation :initform (- (random .04) 0.02) :accessor rotation)
-   (direction :initform 0 :accessor direction)))
+(defclass rock (mob-rot)
+  ((size :initarg :size :initform 1 :accessor size-of)
+   (radii :initform nil :accessor radii)))
 
 (defmethod initialize-instance :after ((rock rock) &key)
-  (let ((radius (nth (size rock) '(nil 0.07 0.04 0.01)))
-        (spd (nth (size rock) '(nil 0.05 0.15 0.25))))
+  (setf (rotation-of rock) (- (random .04) 0.02))
+  (let ((radius (nth (size-of rock) '(nil 0.07 0.04 0.01)))
+        (spd (nth (size-of rock) '(nil 0.05 0.15 0.25))))
     (set-radius radius rock)
     (setf (radii rock)
           (loop for i from 0 below *rock-sides*
 	     collect (round (* (- 1.0 (random 0.3))
 			       (map-radius rock)))))
-    (setf (velocity rock)
+    (setf (velocity-of rock)
           `(,(- (random (* 2 spd)) spd) ,(- (random (* 2 spd)) spd)))))
 
 
@@ -226,7 +230,7 @@
    (draw-polygon (loop for i from 0
                       for r in (radii rock)
                   collect (radial-point-from (map-coords rock) r
-                                             (+ (direction rock)
+                                             (+ (direction-of rock)
                                                 (* i (/ 360 *rock-sides*) +degrees+))))
                 :color *green* ))
 ;;-------------------------------------------------------------------
@@ -250,10 +254,10 @@
 
 (defmethod render ((explosion explosion))
   (let ((coords (map-coords explosion))
-        (radius (map-radius explosion)))
-    (draw-circle coords radius :color *explosion-color* :aa t)
+        (radius-of (map-radius explosion)))
+    (draw-circle coords radius-of :color *explosion-color* :aa t)
     (draw-circle coords
-                 (+ radius (random 3))
+                 (+ radius-of (random 3))
                  :color *explosion-color* :aa t)))
 ;;-------------------------------------------------------------------
 ;; P O W E R U P
@@ -276,22 +280,22 @@
 
 (defmethod render ((powerup powerup-missile))
   (let ((coords (map-coords powerup))
-        (radius (map-radius powerup)))
-    (draw-circle coords radius
+        (radius-of (map-radius powerup)))
+    (draw-circle coords radius-of
                  :color *magenta* :aa t)
-    (draw-circle coords (round (* radius 0.3))
+    (draw-circle coords (round (* radius-of 0.3))
                  :color *white* :aa t)))
 ;;-------------------------------------------------------------------
 (defclass powerup-freeze (powerup) ())
 
 (defmethod render ((powerup powerup-freeze))
   (let ((coords (map-coords powerup))
-        (radius (map-radius powerup)))
-    (draw-circle coords radius
+        (radius-of (map-radius powerup)))
+    (draw-circle coords radius-of
                  :color *cyan* :aa t)
     (draw-polygon (loop for i from 0 to 11
                     collect (radial-point-from coords
-                                               (round (* radius (if (= (mod i 2) 0)
+                                               (round (* radius-of (if (= (mod i 2) 0)
 								    0.7 0.2)))
 					       (* i 0.525)))
                   :color *white* :aa t)))
@@ -300,14 +304,14 @@
 
 (defmethod render ((powerup powerup-shield))
   (let ((coords (map-coords powerup))
-        (radius (map-radius powerup)))
-    (draw-circle coords radius
+        (radius-of (map-radius powerup)))
+    (draw-circle coords radius-of
                  :color *green*)
-    (draw-polygon `(,(radial-point-from coords (round (* radius 0.8)) 0.7)
-                    ,(radial-point-from coords (round (* radius 0.8)) 0)
-                    ,(radial-point-from coords (round (* radius 0.8)) -0.7)
-                    ,(radial-point-from coords (round (* radius 0.8)) -2.3625)
-                    ,(radial-point-from coords (round (* radius 0.8)) 2.3625))
+    (draw-polygon `(,(radial-point-from coords (round (* radius-of 0.8)) 0.7)
+                    ,(radial-point-from coords (round (* radius-of 0.8)) 0)
+                    ,(radial-point-from coords (round (* radius-of 0.8)) -0.7)
+                    ,(radial-point-from coords (round (* radius-of 0.8)) -2.3625)
+                    ,(radial-point-from coords (round (* radius-of 0.8)) 2.3625))
                   :color *white*  :aa t)))
 
 ;;-------------------------------------------------------------------
@@ -319,24 +323,24 @@
                  :pos pos :velocity velocity))
 ;;-------------------------------------------------------------------
 
-(defun polygon1 ( coords radius direction)
+(defun polygon1 ( coords radius-of direction)
   "return a list of vertices (points) suitable for draw-polygon"
-  (let ((nose (radial-point-from coords radius direction))
-	(left (radial-point-from coords radius (- direction 2.45)))
-	(right (radial-point-from coords radius (+ direction 2.45)))
-	(tail-right (radial-point-from coords (* -.5 radius) (- direction 0.7) ))
-	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 0.7) ))
-	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
+  (let ((nose (radial-point-from coords radius-of direction))
+	(left (radial-point-from coords radius-of (- direction 2.45)))
+	(right (radial-point-from coords radius-of (+ direction 2.45)))
+	(tail-right (radial-point-from coords (* -.5 radius-of) (- direction 0.7) ))
+	(tail-left (radial-point-from coords (* -.5 radius-of) (+ direction 0.7) ))
+	;(tail (radial-point-from coords (round (* radius-of 0.5)) (+ direction 180)))
 	)
     (list nose left tail-left tail-right right)))
 #+nil
-(defun polygon2 ( coords radius direction)
-  (let ((nose (radial-point-from coords radius direction))
-	(left (radial-point-from coords radius (- direction 2.45)))
-	(right (radial-point-from coords radius (+ direction 2.45)))
-	(tail-right (radial-point-from coords (* -.5 radius) (- direction 0.7) ))
-	(tail-left (radial-point-from coords (* -.5 radius) (+ direction 0.7) ))
-	;(tail (radial-point-from coords (round (* radius 0.5)) (+ direction 180)))
+(defun polygon2 ( coords radius-of direction)
+  (let ((nose (radial-point-from coords radius-of direction))
+	(left (radial-point-from coords radius-of (- direction 2.45)))
+	(right (radial-point-from coords radius-of (+ direction 2.45)))
+	(tail-right (radial-point-from coords (* -.5 radius-of) (- direction 0.7) ))
+	(tail-left (radial-point-from coords (* -.5 radius-of) (+ direction 0.7) ))
+	;(tail (radial-point-from coords (round (* radius-of 0.5)) (+ direction 180)))
 	)
     (list nose left  left tail-left  tail-left tail-right  tail-right right  right nose )))
 ;; Draw a list of line segments represented as a linear list of pairs of points
@@ -349,11 +353,9 @@
 ;;-------------------------------------------------------------------
 ;; S H I P
 ;;
-(defclass ship (mob) 
+(defclass ship (mob-rot) 
   ((timers :initform (make-hash-table) :accessor timers)
    (acceleration :initform '(0 0) :accessor acceleration-of)
-   (direction :initform 0 :initarg :direction :accessor direction)
-   (rotation :initform 0.0 :accessor rotation) 
    ))
 
 (defmethod initialize-instance :after ((ship ship) &key)
@@ -362,10 +364,10 @@
 (defmethod render ((ship ship))
   (let* ((coords (map-coords ship))
 	 (radius (map-radius ship))
-	 (direction (direction ship)))
+	 (direction (direction-of ship)))
     
     (draw-polygon (polygon1 coords radius direction) :color *green* :aa t)
-    ;(draw-list (polygon2 coords radius direction))
+    ;(draw-list (polygon2 coords radius-of direction))
     (if *is-thrusting* ;draw thrusting jets
 	(let ((tail (radial-point-from coords (round (* radius 0.5)) (+ direction pi))))
 	  (draw-line tail
@@ -381,9 +383,9 @@
 
 (defun ship-fire (ship)
   (let ((missile (make-instance 'missile 
-				:pos (pos ship)
+				:pos (pos-of ship)
 				:super (powerup-active-p ship 'super-missiles) )))
-    (setf (velocity missile) (xy-off-create (direction ship) *missile-velocity*))
+    (setf (velocity-of missile) (xy-off-create (direction-of ship) *missile-velocity*))
     missile )
   
 )
@@ -391,7 +393,7 @@
 
 (defmethod thrust ((ship ship))
   "Set ship's acceleration using *thrust-factor* and ship's direction"
-  (setf (acceleration-of ship) (xy-off-create (direction ship) *thrust-factor*)) )
+  (setf (acceleration-of ship) (xy-off-create (direction-of ship) *thrust-factor*)) )
 
 (defmethod thrust-0 ((ship ship))
   "Set ship's acceleration to null"
@@ -423,15 +425,14 @@
 
 ;;-------------------------------------------------------------------
 ;; X - S H I P
-(defclass x-ship (mob) 
+(defclass x-ship (mob-rot) 
   ((lifetime :initform (make-instance 'timer :ms 1000) :accessor lifetime)
-   (direction :initarg :direction :accessor direction)
    (fade :initform 255 :accessor fade)))
 
 (defmethod render ((x-ship x-ship))
   (draw-polygon (polygon1 (map-coords x-ship) 
 		       (map-radius x-ship) 
-		       (direction x-ship))
+		       (direction-of x-ship))
 		:color ( color
 			 :r (decf (fade x-ship))
 			 :g 0
@@ -526,10 +527,10 @@
 ;;
 ;; all mobs continue moving and wrapping...
 (defmethod update ((mob mob) time-delta (world world))
-  (setf (pos mob)
+  (setf (pos-of mob)
         (mapcar (lambda (x) (mod x 1))
-                (xy-off-sum (pos mob) 
-			    (xy-off-scale (velocity mob) time-delta)))))
+                (xy-off-sum (pos-of mob) 
+			    (xy-off-scale (velocity-of mob) time-delta)))))
 
 ;; update missile
 (defmethod update :after ((missile missile) time-delta (world world))
@@ -548,19 +549,19 @@
 (defmethod update :after  ((x-ship x-ship) time-delta (world world))
   (if (donex (lifetime x-ship))
       (remove-from world x-ship)
-      (setf (direction x-ship ) ;spinning out of control...
-	      (+ (direction x-ship) 0.05)))
+      (setf (direction-of x-ship ) ;spinning out of control...
+	      (+ (direction-of x-ship) 0.05)))
 )
 ;; update rock.  rocks also rotate.  Note: if frozen, mob update not called.
 (defmethod update ((rock rock) time-delta (world world))
   (declare (ignore time-delta))
   (when (not (frozen-p world))
-    (incf (direction rock) (rotation rock))
+    (incf (direction-of rock) (rotation-of rock))
     (call-next-method)))
 
 ;; update explosion
 (defmethod update :after ((explosion explosion) time-delta (world world))
-  (when (> (incf (radius explosion) time-delta)
+  (when (> (incf (radius-of explosion) time-delta)
            *explosion-max-radius*)
     (remove-from world explosion)))
 
@@ -572,21 +573,22 @@
 ;; update ship
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
+  ;;todo:map these
   (cond 
-    ((= *lr-map* 0) (setf (rotation ship) 0))
-    ((= *lr-map* 1) (setf (rotation ship) 1)) 
-    ((= *lr-map* 2) (setf (rotation ship) -1)) 
-    (t (setf (rotation (ship world)) 0)))
+    ((= *lr-map* 0) (setf (rotation-of ship) 0))
+    ((= *lr-map* 1) (setf (rotation-of ship) 1)) 
+    ((= *lr-map* 2) (setf (rotation-of ship) -1)) 
+    (t (setf (rotation-of (ship world)) 0)))
 
-  (setf (direction ship )
-	(+ (direction ship) (* 3.5  time-delta (rotation ship))))
+  (setf (direction-of ship )
+	(+ (direction-of ship) (* 3.5  time-delta (rotation-of ship))))
   
   (if *is-thrusting*
       (thrust ship)
       (thrust-0 ship))
 
-  (setf (velocity ship)
-	(xy-off-scale (xy-off-sum (velocity ship)
+  (setf (velocity-of ship)
+	(xy-off-scale (xy-off-sum (velocity-of ship)
 				  (acceleration-of ship))
 		      *friction*))
 
@@ -742,15 +744,15 @@
 
 
 (defmethod break-down ((rock rock) (world world))
-  (with-slots ((pos pos) size) rock
+  (with-accessors ((pos pos-of)(size size-of))rock
     (if (= size 3)
-      ;; gradually reduce the probability of powerups appearing
-      (if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
-	  (add-to world (make-random-powerup 
-				       :pos pos :velocity (velocity rock))))
-      (progn
-	(add-to world (make-instance 'rock :pos pos :size (1+ size)))
-	(add-to world (make-instance 'rock :pos pos :size (1+ size)))))))
+	;; gradually reduce the probability of powerups appearing
+	(if (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
+	    (add-to world (make-random-powerup 
+			   :pos pos :velocity (velocity-of rock))))
+	(progn
+	  (add-to world (make-instance 'rock :pos pos :size (1+ size)))
+	  (add-to world (make-instance 'rock :pos pos :size (1+ size)))))))
 
 
 
@@ -782,12 +784,12 @@
     (play-explode3 *sound*)
     (play-ufo1-stop *sound*) ;ugly: powerup not removed from world
     (add-to world (make-instance 'x-ship 
-				 :pos (pos ship)
-				 :radius (radius ship)
-				 :velocity (velocity ship)
-				 :direction (direction ship)))
+				 :pos (pos-of ship)
+				 :radius (radius-of ship)
+				 :velocity (velocity-of ship)
+				 :direction (direction-of ship)))
     (remove-from world ship)
-    (add-to world (make-instance 'explosion :pos (pos ship) :velocity (velocity ship)))
+    (add-to world (make-instance 'explosion :pos (pos-of ship) :velocity (velocity-of ship)))
     (decf (lives world))
  
   
@@ -797,9 +799,9 @@
   (remove-from world rock)
   (when (not (super-p missile )) (remove-from world missile))
     (break-down rock world) ;it adds smaller rocks to world
-  (add-to world (make-instance 'explosion :pos (pos rock) :velocity (velocity rock)))
+  (add-to world (make-instance 'explosion :pos (pos-of rock) :velocity (velocity-of rock)))
   (add-score world rock)
-  (case (size rock)
+  (case (size-of rock)
     (1 (play-explode1 *sound*))
     (2 (play-explode2 *sound*))
     (3 (play-explode3 *sound*))))
@@ -823,7 +825,7 @@
   (add-score world (* (level world) 10)))
 
 (defmethod add-score ((world world) (rock rock))
-  (add-score world (nth (size rock) '(nil 1 2 5))))
+  (add-score world (nth (size-of rock) '(nil 1 2 5))))
 
 
 
