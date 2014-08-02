@@ -7,7 +7,7 @@ and a built-in REPL.
 Forked from ASTeroids by github user andyhd.  See README.old and the repo.
 Thank you andyhd!
 
-Clean-up
+Clean-up 
 --------
 
 Code has been re-organized and cleaned up.  Names have been altered
