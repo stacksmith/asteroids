@@ -574,15 +574,9 @@
 (defmethod update :around ((ship ship) time-delta (world world))
   ;; lr-map contains left/right button mapping, for rollover...
   ;;
-  (setf (rotation-of ship) (elt '(0 1 -1 0) *lr-map*))
-  #+nil(cond 
-    ((= *lr-map* 0) (setf (rotation-of ship) 0))
-    ((= *lr-map* 1) (setf (rotation-of ship) 1)) 
-    ((= *lr-map* 2) (setf (rotation-of ship) -1)) 
-    (t (setf (rotation-of (ship world)) 0)))
+  (setf (rotation-of ship) (elt '(0 1 -1 0) *lr-map*)) ;rotation based on kbd
 
-  (setf (direction-of ship )
-	(+ (direction-of ship) (* 3.5  time-delta (rotation-of ship))))
+  (incf (direction-of ship)  (* 3.5  time-delta (rotation-of ship)))
   
   (if *is-thrusting*
       (thrust ship)
