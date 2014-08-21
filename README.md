@@ -32,8 +32,10 @@ As long as SBCL works from the commandline, type './asteroids.sh'.  I haven't
 tested it in winders, but see what the script does and make a batch file.
 
 The game requires lispbuilder-sdl, lispbuilder-sdl-gfx, and 
-lispbuilder-sdl-mixer.  If you have problems, use quicklisp to install 
-lispbuilder.
+lispbuilder-sdl-mixer.  Before you quicklisp these, please install the actual
+sdl libraries for your system.  For my Ubuntu I installed:
+-libsdl-dev
+-libsdl-gfx1.2-dev
 
 Instructions
 ------------

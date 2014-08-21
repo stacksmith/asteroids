@@ -360,7 +360,7 @@
        ))
 
 ;;-------------------------------------------------------------------
-;; S H I P
+;; S' H I P
 ;;
 (defclass ship (mob-rot) 
   ((timers :initform (make-hash-table) :accessor timers)
@@ -624,7 +624,7 @@
         (remhash timer-name (timers world))
         (when (functionp do)
           (funcall do)))
-      (setf (gethash timer-name (timers world))
+      (setf (gethash timer-name (timers world))update
             (make-instance 'timer :ms (* 1000  seconds))))))
 
 
