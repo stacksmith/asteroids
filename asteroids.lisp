@@ -9,15 +9,15 @@
 ;; compile entire file with C-c C-k
 ;; in REPL, enter (asteroids:main) or do (in-package asteroids), then (main).
 ;;
-(ql:quickload "lispbuilder-sdl")
-(ql:quickload "lispbuilder-sdl-gfx")
-(ql:quickload "lispbuilder-sdl-mixer")
+;;(ql:quickload "lispbuilder-sdl")
+;;(ql:quickload "lispbuilder-sdl-gfx")
+;;(ql:quickload "lispbuilder-sdl-mixer")
 
 
-(defpackage :asteroids
-  (:use :cl :sdl )
-  (:export main)
-)
+;;(defpackage :asteroids
+;;  (:use :cl :sdl )
+;;  (:export main)
+;;)
 
 (in-package :asteroids)
 
@@ -61,13 +61,20 @@
 (defmethod initialize ((sound sound))
   (setf (opened sound) (sdl-mixer:open-audio))
   (format t "mixer opened...")
+
   (setf (sample sound)
-	(mapcar #'sdl-mixer:load-sample 
+	(mapcar #'(lambda (x) (sdl-mixer:load-sample (asdf:system-relative-pathname 'asteroids x)))  
+		'("sounds/explode1.wav" "sounds/explode2.wav" "sounds/explode3.wav" "sounds/fire.wav" 
+		  "sounds/thrust.wav"   "sounds/thumplo.wav"  "sounds/thumphi.wav" "sounds/lsaucer.wav"
+		  "sounds/ssaucer.wav"  "sounds/phaser.wav")))
+
+#+-  (setf (sample sound)
+	(mapcar #'sdl-mixer:load-sample  
 		'("sounds/explode1.wav" "sounds/explode2.wav" "sounds/explode3.wav" "sounds/fire.wav" 
 		  "sounds/thrust.wav"   "sounds/thumplo.wav"  "sounds/thumphi.wav" "sounds/lsaucer.wav"
 		  "sounds/ssaucer.wav"  "sounds/phaser.wav")))
   (setf (music sound) 
-	(mapcar #' sdl-mixer:load-music
+	(mapcar #'(lambda (x) (sdl-mixer:load-music (asdf:system-relative-pathname 'asteroids x)))
 		   '( "sounds/music.mp3" "sounds/haters.mp3" "sounds/biding.mp3" "sounds/banjo.mp3")))
   (sdl-mixer:allocate-channels 16)
   (play-phaser sound)
@@ -180,7 +187,7 @@
 (defmethod set-seconds ((timer timer) seconds)
   (setf (target timer) (+  (system-ticks) (* 1000 seconds))))
 ;;-------------------------------------------------------------------
-;; M O B 
+;; M O B S
 ;;
 (defclass mob ()
   ((pos :initform '(0.5 0.5) :initarg :pos  :accessor pos-of)
@@ -616,7 +623,7 @@
 
 
 
-
+#+-
 (defmethod after ((world world) timer-name &key (seconds 0) do)
   (multiple-value-bind (timer exists) (gethash timer-name (timers world))
     (if exists
@@ -624,7 +631,7 @@
         (remhash timer-name (timers world))
         (when (functionp do)
           (funcall do)))
-      (setf (gethash timer-name (timers world))update
+      (setf (gethash timer-name (timers world)) update
             (make-instance 'timer :ms (* 1000  seconds))))))
 
 
@@ -646,7 +653,7 @@
                  (incf (lives world))
                  (start-next-level world)
 					;(reset-thumper (thumper world))
-					;(sdl-mixer:halt-music)
+
 		 (play-ufo1-stop *sound*) ;ugly-powerups are not removed?
 		 )))
 
