@@ -1,11 +1,12 @@
 asteroids
 =========
 
-The game has been tuned for playability, added sounds, keyboard controls
-and a built-in REPL.
+The classic asteroids game using SDL.
 
-Forked from ASTeroids by github user andyhd.  See README.old and the repo.
-Thank you andyhd!
+Originally ported from Python by andyhd.  The game now has sounds, keyboard
+controls, a built-in REPL (triggered by ESC key) and is very playable.
+
+See README.old and the repo.  Many thank you andyhd!
 
 Clean-up 
 --------
