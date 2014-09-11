@@ -11,7 +11,7 @@ Clean-up
 --------
 
 Code has been re-organized and cleaned up.  Names have been altered
-to make it more sensible and bugs fixed.
+to make it more sensible and bugs fixed.  Now loading with quicklisp
 
 ESC now brings you to a REPL.  Examine the game state, recompile anything
 (carefully).
@@ -28,17 +28,20 @@ Installation
 
 Install SBCL and quicklisp.
 
-As long as SBCL works from the commandline, type './asteroids.sh'.  I haven't
-tested it in winders, but see what the script does and make a batch file.
-
 The game requires lispbuilder-sdl, lispbuilder-sdl-gfx, and 
 lispbuilder-sdl-mixer.  Before you quicklisp these, please install the actual
 sdl libraries for your system.  For my Ubuntu I installed:
 -libsdl-dev
 -libsdl-gfx1.2-dev
 
-Instructions
-------------
+Clone the git repo into a directory visible to quicklisp/asdf. Type:
+
+(ql:quickload "asteroids")
+(asteroids:main)
+
+
+Play Instructions
+-----------------
 
 The game plays like original asteroids, except instead of saucers you get 
 powerups.  Ram the powerups to pick up super-missiles that go through anything,
