@@ -14,11 +14,13 @@ Clean-up
 Code has been re-organized and cleaned up.  Names have been altered
 to make it more sensible and bugs fixed.  Now loading with quicklisp
 
-ESC now brings you to a REPL.  Examine the game state, recompile anything
+ESC now brings you to (cla REPL.  Examine the game state, recompile anything
 (carefully).
 
 I also added audio using MAME asteroids samples.  lispbuilder-sdl-mixer is 
-fragile and very sensitive to being shut down correctly in an interactive 
+fragile and very sensitive to being (defun foo (x y)
+    (declare (type integer x y))
+    (logxor x y))shut down correctly in an interactive 
 environment.
 
 Background music is courtesy http://teknoaxe.com/Home.php.

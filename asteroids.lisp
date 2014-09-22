@@ -181,7 +181,7 @@
 (defmethod initialize-instance :after ((timer timer) &key)
   (incf (target timer) (system-ticks) ))
 
-(defmethod donex ((timer timer))
+(defmethod done ((timer timer))
   (<= (target timer) (system-ticks)))
 
 (defmethod set-seconds ((timer timer) seconds)
@@ -419,7 +419,7 @@
 (defmethod powerup-active-p ((ship ship) powerup)
   (let ((timer (gethash powerup (timers ship) nil)))
     (and timer
-         (not (donex timer)))))
+         (not (done timer)))))
 
 
 
@@ -493,6 +493,18 @@
 
 (defmethod add-to :after ((world world) (powerup powerup))
   (play-ufo1 *sound* ))
+
+(defmethod after ((world world) timer-name &key (seconds 0) do)
+  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
+    (if exists
+      (when (done timer)
+        (remhash timer-name (timers world))
+        (when (functionp do)
+          (funcall do)))
+      (setf (gethash timer-name (timers world))
+            (make-instance 'timer :ms (* 1000  seconds))))))
+
+
 ;; Removing from world
 (defmethod remove-from ((world world) (mob mob))
   (setf (mobs world) (remove mob (mobs world))))
@@ -549,7 +561,7 @@
 
 ;; update missile
 (defmethod update :after ((missile missile) time-delta (world world))
-  (if (donex (lifetime missile))
+  (if (done (lifetime missile))
       (remove-from world missile))
 #+nil  (let ((remaining (- (timeout missile) time-delta)))
     (if (<= remaining 0)
@@ -562,7 +574,7 @@
 
 ;; update x-ship
 (defmethod update :after  ((x-ship x-ship) time-delta (world world))
-  (if (donex (lifetime x-ship))
+  (if (done (lifetime x-ship))
       (remove-from world x-ship)
       (setf (direction-of x-ship ) ;spinning out of control...
 	      (+ (direction-of x-ship) 0.05)))
@@ -582,7 +594,7 @@
 
 ;; update powerup
 (defmethod update :after ((powerup powerup) time-delta (world world))
-  (when (donex (lifetime powerup)) 
+  (when (done (lifetime powerup)) 
     (remove-from world powerup)))
 
 ;; update ship
@@ -627,7 +639,7 @@
 (defmethod after ((world world) timer-name &key (seconds 0) do)
   (multiple-value-bind (timer exists) (gethash timer-name (timers world))
     (if exists
-      (when (donex timer)
+      (when (done timer)
         (remhash timer-name (timers world))
         (when (functionp do)
           (funcall do)))
@@ -636,15 +648,9 @@
 
 
 (defmethod update-world ((world world))
-					;(update-thumper (thumper *world*) )
-  
-  
-  #+nil  (maphash (lambda (name timer)
-		    (declare (ignore name))
-		    (update-timer timer (sdl:dt)))
-		  (timers world))
   (dolist (mob (mobs world))
     (update mob (sdl:dt) world))
+
   ;; start next level 3 seconds after clearing
   (when (level-cleared-p world)
     (stop-music *sound*)
@@ -680,7 +686,7 @@
 (defmethod frozen-p ((world world))
   (let ((timer (gethash 'freeze (timers world) nil)))
     (and timer
-         (not (donex timer)))))
+         (not (done timer)))))
 
 ;; Attract screen
 (defmethod render-attract ((world world))
