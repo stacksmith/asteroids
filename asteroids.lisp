@@ -470,13 +470,13 @@
    (thumper :initform (make-instance 'thumper :period 1000) :accessor thumper)))
 
 (defmethod reset ((world world))
-  (setf (mobs world) nil)
-  (setf (ship world) nil)	
-  (setf (paused world) nil)
-  (setf (level world) 0)
-  (setf (score world) 0)
-  (setf (lives world) 1)
-  (setf (num-of-rocks world) 0)
+  (setf (mobs world) nil
+	(ship world) nil	
+	(paused world) nil
+	(level world) 0
+	(score world) 0
+	(lives world) 1
+	(num-of-rocks world) 0)
 
   (reset *sound*))
 ;; Adding to world: cons to mob list and track ship and rock-count
@@ -658,8 +658,6 @@
            :do (lambda ()
                  (incf (lives world))
                  (start-next-level world)
-					;(reset-thumper (thumper world))
-
 		 (play-ufo1-stop *sound*) ;ugly-powerups are not removed?
 		 )))
 
@@ -704,11 +702,11 @@
 			       (round (* 1/2 (- *screen-width* 171)))
 			       (round (* 3/4 (- *screen-height* 18)))
 			       :color *green*)
-  (sdl-gfx:draw-string-solid-* (format nil "Controls: [a] left   [f] right   [j] thrust   [space] fire" )
+  (sdl-gfx:draw-string-solid-* (format nil "| a left | f right | j thrust | <space> fire |" )
 			       50
 			       (round (* 7/8 (- *screen-height* 18)))
 			       :color *green*)
-  (sdl-gfx:draw-string-solid-* (format nil "Press [p] to play" )
+  (sdl-gfx:draw-string-solid-* (format nil "        | p play | q quit |" )
 			       50
 			       (round (* 15/16 (- *screen-height* 18)))
 
@@ -957,11 +955,7 @@
 	    (setf target  (+ sdl-ticks period))
 	    (if (> period 400) (decf period 40))))))) 
 
-(defmethod reset-thumper ((thumper thumper))
-  (setf (period thumper) 1500)
-  (setf (target thumper) 0)
-  (setf (phasex thumper) 1)
-)
+
 (defun sample-finished-action ()
   (sdl-mixer:register-sample-finished
    (lambda (channel)
@@ -974,6 +968,7 @@
 
 
 (defun main ()
+  (print "hello")
   (setf *world* (make-instance 'world))
   (let ((world *world*))
 
