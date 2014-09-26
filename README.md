@@ -1,46 +1,33 @@
 asteroids
 =========
 
-The classic asteroids game using SDL.
+Classic asteroids arcade game in Common Lisp, using SDL.
 
-Originally ported from Python by andyhd.  The game now has sounds, keyboard
+Originally ported from Python by andyhd (thanks, andyhd!).
+The game now has sounds, keyboard 
 controls, a built-in REPL (triggered by ESC key) and is very playable.
 
-See README.old and the repo.  Many thank you andyhd!
-
-Clean-up 
---------
-
-Code has been re-organized and cleaned up.  Names have been altered
-to make it more sensible and bugs fixed.  Now loading with quicklisp
-
-ESC now brings you to (cla REPL.  Examine the game state, recompile anything
-(carefully).
-
-I also added audio using MAME asteroids samples.  lispbuilder-sdl-mixer is 
-fragile and very sensitive to being (defun foo (x y)
-    (declare (type integer x y))
-    (logxor x y))shut down correctly in an interactive 
-environment.
-
-Background music is courtesy http://teknoaxe.com/Home.php.
 
 
-Installation
-------------
 
-Install SBCL and quicklisp.
+Installation (no git cloning needed)
+------------------------------------
 
-The game requires lispbuilder-sdl, lispbuilder-sdl-gfx, and 
-lispbuilder-sdl-mixer.  Before you quicklisp these, please install the actual
-sdl libraries for your system.  For my Ubuntu I installed:
--libsdl-dev
--libsdl-gfx1.2-dev
+Install SBCL (or CCL) and quicklisp 
+<a href="http://xach.livejournal.com/278047.html">as described here</a>)
 
-Clone the git repo into a directory visible to quicklisp/asdf. Type:
+<b>IMPORTANT</b> - install native sdl libraries!  For linux, that means apt-get install
 
+- libsdl-dev
+- libsdl-gfx1.2-dev
+
+Now, in lisp 
 (ql:quickload "asteroids")
 (asteroids:main)
+
+Quicklisp updates monthly.  If you want the newest version, git clone this repo
+into an asdf-visible directory <a href="http://xach.livejournal.com/278047.html">(see Xach's article)</a>.
+  ql:quickload will load the local repo first
 
 
 Play Instructions
@@ -60,6 +47,23 @@ SPC - fire
 ESC - REPL
 
 P starts the game in attract mode.
+
+Notes
+-----
+
+Code has been re-organized and cleaned up.  Names have been altered
+to make it more sensible and bugs fixed.  Now loading with quicklisp
+
+ESC now brings you to (cla REPL.  Examine the game state, recompile anything
+(carefully).
+
+I also added audio using MAME asteroids samples.  lispbuilder-sdl-mixer is 
+fragile and very sensitive to being (defun foo (x y)
+    (declare (type integer x y))
+    (logxor x y))shut down correctly in an interactive 
+environment.
+
+Background music is courtesy http://teknoaxe.com/Home.php.
 
 TODO:
 -----
