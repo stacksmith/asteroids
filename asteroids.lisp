@@ -60,7 +60,7 @@
 
 (defmethod initialize ((sound sound))
   (setf (opened sound) (sdl-mixer:open-audio))
-  (format t "mixer opened...")
+  ;(format t "mixer opened...")
 
   (setf (sample sound)
 	(mapcar #'(lambda (x) (sdl-mixer:load-sample (asdf:system-relative-pathname 'asteroids x)))  
@@ -968,7 +968,11 @@
 
 
 (defun main ()
-  (print "hello")
+  (format t "~%please make sure that you've installed system binaries with apt-get:")
+  (format t "~%- libsdl-dev")
+  (format t "~%- libsdl-gfx1.2-dev")
+  (format t "~%- libsdl-mixer1.2-dev")
+  (format t "~%- see http://https://github.com/stacksmith/asteroids/blob/master/README.md")
   (setf *world* (make-instance 'world))
   (let ((world *world*))
 
@@ -1004,3 +1008,5 @@
 		      )
 	       (render-world world)
 	       (update-display))))))
+
+(main)

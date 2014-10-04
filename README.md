@@ -20,6 +20,7 @@ Install SBCL (or CCL) and quicklisp
 
 - libsdl-dev
 - libsdl-gfx1.2-dev
+- libsdl-mixer1.2-dev
 
 Now, in lisp 
 (ql:quickload "asteroids")
