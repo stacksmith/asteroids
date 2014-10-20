@@ -1009,7 +1009,7 @@
 	       (render-world world)
 	       (update-display))))))
 
-(defun asteroids () main)
+(defun asteroids () (main))
 
 ;; Uncomment this line to have the game start fight away...
 ;;(main)
