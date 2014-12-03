@@ -26,7 +26,7 @@
 (defparameter *screen-height* 600)
  
 (defparameter *window* nil)
-(defparameter *thrust-factor* 0.005)
+(defparameter *thrust-factor* 0.0025)
 (defparameter *friction* 0.995)
 (defparameter *missile-velocity* 0.8)
 (defparameter *rock-sides* 12)
@@ -161,6 +161,11 @@
   (point :x (+ (* radius (sin angle)) (x p))
          :y (+ (* radius (cos angle)) (y p))))
 
+(defun radial-points-from (coord radius angles)
+  "return a list of points located along the radius around p, at list of angles"
+  (map 'list (lambda (a) (radial-point-from coord radius a))
+	 angles)
+)
 #+nil
 (defun calc-angle (a b)
   (destructuring-bind (x y) (xy-off-subtract b a)
@@ -233,7 +238,8 @@
 	     collect (round (* (- 1.0 (random 0.3))
 			       (map-radius rock)))))
     (setf (velocity-of rock)
-          `(,(- (random (* 2 spd)) spd) ,(- (random (* 2 spd)) spd)))))
+;;c01 `(,(- (random (* 2 spd)) spd) ,(- (random (* 2 spd)) spd))
+        (list (- (random (* 2 spd)) spd) (- (random (* 2 spd)) spd)))))
 
 
 
@@ -320,15 +326,12 @@
 
 (defmethod render ((powerup powerup-shield))
   (let ((coords (map-coords powerup))
-        (radius-of (map-radius powerup)))
-    (draw-circle coords radius-of
-                 :color *green*)
-    (draw-polygon `(,(radial-point-from coords (round (* radius-of 0.8)) 0.7)
-                    ,(radial-point-from coords (round (* radius-of 0.8)) 0)
-                    ,(radial-point-from coords (round (* radius-of 0.8)) -0.7)
-                    ,(radial-point-from coords (round (* radius-of 0.8)) -2.3625)
-                    ,(radial-point-from coords (round (* radius-of 0.8)) 2.3625))
-                  :color *white*  :aa t)))
+        (radius (round (* 0.8 (map-radius powerup)))))
+    (draw-circle coords (round (* 1.2 radius))  :color *green*)    
+    (draw-polygon 
+     (radial-points-from coords radius '(0.7 0 -0.7 -2.3625 2.3625))
+     :color *white* :aa t)))
+
 
 ;;-------------------------------------------------------------------
 (defun make-random-powerup (&key pos velocity)
@@ -538,7 +541,8 @@
     (setf timers (make-hash-table))
     (setf (num-of-rocks world) 0)	;
     (dotimes (i level)
-      (add-to world (make-instance 'rock :pos `(,(random 1.0) ,(random 1.0)))))
+;;cc01
+      (add-to world (make-instance 'rock :pos (list (random 1.0) (random 1.0)))))
     (add-to world (or ship (make-instance 'ship))) ;keep existing ship or create a new one
     (add-shield (ship world) :seconds 6)
     (play-music *sound* level)
@@ -758,7 +762,8 @@
     (if (= size 3)
 	;; gradually reduce the probability of powerups appearing
 	(if (and (< 1 (num-of-rocks world))
-		 (< (random 100) (/ 100 (+ 4 (* (level world) 0.3)))))
+		 (< (random 100) (/ 100 (+ 4 (* (level world) 0.3))))
+		 )
 	    (add-to world (make-random-powerup 
 			   :pos pos :velocity (velocity-of rock))))
 	(progn
