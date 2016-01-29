@@ -224,6 +224,8 @@
 ;;-------------------------------------------------------------------
 ;; R O C K
 ;;
+;; A rock is constructed as a radial object with *rock-sides*, by
+;; creating a list of radii connecting center to each vertex
 (defclass rock (mob-rot)
   ((size :initarg :size :initform 1 :accessor size-of)
    (radii :initform nil :accessor radii)))
@@ -244,9 +246,10 @@
 
 
 (defmethod render ((rock rock))
-   (draw-polygon (loop for i from 0
-                      for r in (radii rock)
-                  collect (radial-point-from (map-coords rock) r
+  (draw-polygon (loop
+		   for i from 0
+		   for r in (radii rock)
+		   collect (radial-point-from (map-coords rock) r
                                              (+ (direction-of rock)
                                                 (* i (/ 360 *rock-sides*) +degrees+))))
                 :color *green* ))
@@ -928,8 +931,8 @@
      
 	)
       (case key
-	(:sdl-key-escape (repl)		;(push-quit-event)
-	 )
+	(:sdl-key-escape (push-quit-event))
+	(:sdl-key-r (repl))
 	(:sdl-key-a (setf *lr-map* (boole boole-and *lr-map* 2)))
 	(:sdl-key-f (setf *lr-map* (boole boole-and *lr-map* 1)))
 	(:sdl-key-j (setf *is-thrusting* nil) (play-thrust-stop *sound*)))))
