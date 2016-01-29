@@ -497,15 +497,8 @@
 (defmethod add-to :after ((world world) (powerup powerup))
   (play-ufo1 *sound* ))
 
-(defmethod after ((world world) timer-name &key (seconds 0) do)
-  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
-    (if exists
-      (when (done timer)
-        (remhash timer-name (timers world))
-        (when (functionp do)
-          (funcall do)))
-      (setf (gethash timer-name (timers world))
-            (make-instance 'timer :ms (* 1000  seconds))))))
+
+
 
 
 ;; Removing from world
@@ -649,17 +642,24 @@
           (funcall do)))
       (setf (gethash timer-name (timers world)) update
             (make-instance 'timer :ms (* 1000  seconds))))))
+(defun apres (world timer-name &key (seconds 0) fun)
+  (multiple-value-bind (timer exists) (gethash timer-name (timers world))
+    (if exists
+      (when (done timer)
+        (remhash timer-name (timers world))
+        (funcall fun))
+      (setf (gethash timer-name (timers world))
+            (make-instance 'timer :ms (* 1000  seconds))))))
 
-
-(defmethod update-world ((world world))
+(defun update-world (world)
   (dolist (mob (mobs world))
     (update mob (sdl:dt) world))
 
   ;; start next level 3 seconds after clearing
   (when (level-cleared-p world)
     (stop-music *sound*)
-    (after world 'cleared :seconds 3
-           :do (lambda ()
+    (apres world 'cleared :seconds 3
+           :fun (lambda ()
                  (incf (lives world))
                  (start-next-level world)
 		 (play-ufo1-stop *sound*) ;ugly-powerups are not removed?
@@ -667,8 +667,8 @@
 
   ;; restart level 3 seconds after death - game over if no more lives  
   (unless (ship world)
-    (after world 'death :seconds 3
-	   :do (lambda ()
+    (apres world 'death :seconds 3
+	   :fun (lambda ()
 		 (if (< (lives world) 1)
 		     (setf (level world) 0) ; game over
 		     (let ((ship (make-instance 'ship)))
