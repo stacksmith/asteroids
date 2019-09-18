@@ -51,6 +51,7 @@ P starts the game in attract mode.
 
 Notes
 -----
+In retrospect, this was my first attempt at programming in Lisp, by modifying code written by someone who was probably doing the same thing (I think original code was in some other language...).  Don't look too closely; I know I won't.
 
 Code has been re-organized and cleaned up.  Names have been altered
 to make it more sensible and bugs fixed.  Now loading with quicklisp
